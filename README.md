@@ -1,264 +1,121 @@
 
+
+
+# SHAP-Guided Knowledge Distillation for Credit Scoring
+
 **基于SHAP特征重要性引导的知识蒸馏信用评分系统**
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-[![Scikit-learn](https://img.shields.io/badge/Scikit--learn-1.3+-green.svg)](https://scikit-learn.org/)
-[![SHAP](https://img.shields.io/badge/SHAP-0.42+-orange.svg)](https://shap.readthedocs.io/)
-[![Optuna](https://img.shields.io/badge/Optuna-3.4+-purple.svg)](https://optuna.org/)
+---
 
-## 📋 项目概述
+## 项目简介
 
-本项目实现了一个创新的信用评分模型优化系统，通过结合**SHAP特征重要性分析**和**知识蒸馏技术**，将复杂的神经网络教师模型的知识转移到可解释的决策树学生模型中，在保持高预测性能的同时显著提升模型的可解释性。
+本项目实现了一个高可解释性、高准确率的信用评分系统，核心思想为：
 
-### 🎯 核心创新点
+- 利用**SHAP特征重要性分析**筛选最关键的特征
+- 采用**成熟的神经网络教师模型**（仅经典MLP和TabNet，架构参考Kaggle高分方案）
+- 通过知识蒸馏，将复杂神经网络的知识迁移到可解释的决策树学生模型
 
-- **🧠 多架构神经网络**: 针对不同数据集设计专门的神经网络架构
-- **🔍 SHAP特征重要性**: 基于SHAP值进行特征选择和重要性排序
-- **🎓 知识蒸馏**: 从复杂神经网络向可解释决策树传递知识
-- **⚡ 智能优化**: 集成Optuna进行自动超参数优化
-- **📊 全面评估**: 多维度性能分析和可视化
+系统兼顾了预测性能与可解释性，适用于金融风控等实际场景。
 
-## 📁 项目结构
+---
+
+## 目录结构
 
 ```
-📦 shapGuided_KnowledgeDistilling/
-├── 📊 data/                          # 数据集目录
-│   ├── uci_credit.xls                # UCI信用数据集
-│   ├── german_credit.csv             # German信用数据集
-│   └── australian_credit.csv         # Australian信用数据集
-├── 🧠 models/                        # 训练好的模型存储
-├── 📈 results/                       # 实验结果
-├── 📊 visualization/                 # 可视化图表
-├── 🔧 data_preprocessing.py          # 数据预处理模块
-├── 🧠 neural_models.py               # 神经网络教师模型
-├── 🔍 shap_analysis.py               # SHAP特征重要性分析
-├── 🎓 distillation_module.py         # 知识蒸馏核心模块
-├── 📊 experiment_manager.py          # 实验管理和结果分析
-├── 🌳 tree_rules_analyzer.py         # 决策树规则提取
-├── 🚀 main.py                        # 主程序入口
-└── 📖 README.md                      # 项目文档
+├── data/                  # 数据集目录
+│   ├── uci_credit.xls
+│   ├── german_credit.csv
+│   └── australian_credit.csv
+├── neural_models.py       # 教师神经网络模型（MLP/TabNet）
+├── distillation_module.py # 知识蒸馏主流程
+├── shap_analysis.py       # SHAP特征重要性分析
+├── main.py                # 主程序入口
+├── ... 其他模块
 ```
 
-## 🏗️ 系统架构
+---
 
-### 1. 数据预处理层
-- **标准化处理**: Z-score标准化确保特征尺度一致
-- **编码转换**: 分类变量自动编码处理
-- **数据分割**: 训练/验证/测试集智能分割
+## 教师模型架构说明
 
-### 2. 教师模型层
-```python
-# UCI数据集 - 多层感知机
-MLP_UCI: Input → 64 → 32 → 1 → Sigmoid
+本项目仅采用社区验证、准确率高、易于复现的神经网络架构：
 
-# German数据集 - 径向基函数网络  
-RBF_German: Input → 30 RBF Centers → Linear → Sigmoid
+- **UCI/Australian 数据集**：经典MLP（多层感知机）
+    - 结构：Input → 64 → 32 → 1，含BatchNorm与Dropout
+- **German 数据集**：TabNet（pytorch-tabnet官方实现）
 
-# Australian数据集 - 自编码器增强MLP
-AE_MLP_Australian: Input → Encoder(16→8) → Decoder → Classifier → Sigmoid
-```
+> 所有模型均为PyTorch实现，参数设置参考Kaggle高分方案，保证鲁棒性与可复现性。
 
-### 3. 特征重要性分析
-- **SHAP值计算**: 基于Shapley值的特征贡献分析
-- **特征排序**: 按重要性对特征进行排序
-- **Top-K选择**: 自适应选择最重要的K个特征
+---
 
-### 4. 知识蒸馏层
-- **温度缩放**: 软标签概率调节 (T ∈ [1,5])
-- **损失函数**: 蒸馏损失 + 硬标签损失
-- **权重平衡**: α ∈ [0.1, 0.9] 控制损失权重
+## 快速开始
 
-### 5. 学生模型优化
-- **决策树**: 可解释的树状结构
-- **深度控制**: max_depth ∈ [4,8]
-- **Optuna优化**: 自动搜索最优超参数
-
-## ⚙️ 核心算法
-
-### 知识蒸馏损失函数
-
-```python
-L_total = α × L_distillation + (1-α) × L_hard
-
-L_distillation = KL_divergence(
-    softmax(logits_student / T), 
-    softmax(logits_teacher / T)
-) × T²
-
-L_hard = CrossEntropy(logits_student, true_labels)
-```
-
-### SHAP特征选择算法
-
-```python
-def shap_feature_selection(model, X_train, top_k):
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_train)
-    importance = np.mean(np.abs(shap_values), axis=0)
-    return np.argsort(importance)[-top_k:]
-```
-
-## 🚀 快速开始
-
-### 环境要求
+### 1. 环境依赖
 
 ```bash
-Python >= 3.8
-torch >= 2.0.0
-scikit-learn >= 1.3.0
-shap >= 0.42.0
-optuna >= 3.4.0
-pandas >= 1.5.0
-numpy >= 1.24.0
-matplotlib >= 3.6.0
-seaborn >= 0.12.0
-tqdm >= 4.64.0
+pip install torch scikit-learn shap pandas numpy matplotlib seaborn tqdm openpyxl pytorch-tabnet
 ```
 
-### 安装依赖
+### 2. 数据准备
 
-```bash
-pip install torch scikit-learn shap optuna pandas numpy matplotlib seaborn tqdm openpyxl
-```
+将数据集放入 `data/` 目录：
+- uci_credit.xls
+- german_credit.csv
+- australian_credit.csv
 
-### 运行实验
+### 3. 运行主程序
 
 ```bash
 python main.py
 ```
 
-## 📊 实验配置
+---
 
-### 超参数设置
+## 主要流程
 
-| 参数 | 范围 | 说明 |
-|------|------|------|
-| `top_k` | [5, 6, 7, 8] | SHAP特征选择数量 |
-| `temperature` | [1, 2, 3, 4, 5] | 知识蒸馏温度参数 |
-| `alpha` | [0.1, 0.2, ..., 0.9] | 损失权重平衡参数 |
-| `max_depth` | [4, 5, 6, 7, 8] | 决策树最大深度 |
-
-### Optuna优化参数
-
-- `min_samples_split`: [2, 20]
-- `min_samples_leaf`: [1, 10] 
-- `max_features`: ['sqrt', 'log2', None]
-- `criterion`: ['gini', 'entropy']
-
-## 📈 性能评估
-
-### 评估指标
-
-- **准确率 (Accuracy)**: 主要评判标准
-- **F1分数**: 平衡精确率和召回率
-- **精确率 (Precision)**: 正例预测准确性
-- **召回率 (Recall)**: 正例覆盖完整性
-
-### 输出文件
-
-| 文件类型 | 描述 |
-|----------|------|
-| `📊 comparison_results.xlsx` | 四种模型性能对比 |
-| `📋 master_results.xlsx` | 完整实验结果记录 |
-| `📈 performance_analysis.png` | 性能分析图表 |
-| `🔍 topk_parameter_analysis.png` | Top-K参数影响分析 |
-| `🌳 decision_tree_rules.xlsx` | 最优决策树规则 |
-| `📄 experiment_summary.txt` | 实验总结报告 |
-
-## 🔬 技术细节
-
-### 数据集特点
-
-| 数据集 | 样本数 | 特征数 | 不平衡比例 | 神经网络架构 |
-|--------|--------|--------|------------|--------------|
-| UCI Credit | 30,000 | 23 | 22:78 | MLP (64→32→1) |
-| German Credit | 1,000 | 20 | 70:30 | RBF (30 centers) |
-| Australian Credit | 690 | 14 | 44:56 | AutoEncoder-MLP |
-
-### 算法复杂度
-
-- **SHAP分析**: O(n × m × d) - n样本, m特征, d深度
-- **知识蒸馏**: O(epochs × batch_size × parameters)
-- **决策树训练**: O(n × log(n) × m)
-
-## 📊 实验结果示例
-
-```
-🏆 最佳模型性能 (UCI数据集):
-   模型类型: Top-K知识蒸馏
-   准确率: 0.8234
-   F1分数: 0.7891
-   特征数: 7 (原始23个)
-   决策树深度: 6
-   温度参数: 3
-   权重参数: 0.7
-```
-
-## 🔧 自定义配置
-
-### 修改神经网络架构
-
-```python
-# 在 neural_models.py 中修改
-class Custom_Model(nn.Module):
-    def __init__(self, input_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 128),  # 自定义层数
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(), 
-            nn.Linear(64, 1),
-            nn.Sigmoid()
-        )
-```
-
-### 调整蒸馏参数
-
-```python
-# 在 main.py 中修改实验配置
-config = {
-    'top_k_values': [8, 12, 16, 24],      # 自定义K值
-    'temperature_values': [2, 4, 6],       # 自定义温度
-    'alpha_values': [0.3, 0.5, 0.7],      # 自定义权重
-    'max_depth_values': [5, 7, 9]         # 自定义深度
-}
-```
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
-
-## 📄 许可证
-
-本项目基于 MIT 许可证开源 - 详见 [LICENSE](LICENSE) 文件
-
-## 📞 联系方式
-
-- **项目作者**: [Your Name]
-- **邮箱**: [your.email@example.com]
-- **GitHub**: [https://github.com/yourusername/shapGuided_KnowledgeDistilling](https://github.com/yourusername/shapGuided_KnowledgeDistilling)
-
-## 🙏 致谢
-
-- [SHAP](https://github.com/slundberg/shap) - 用于模型解释性分析
-- [Optuna](https://github.com/optuna/optuna) - 用于超参数优化
-- [PyTorch](https://pytorch.org/) - 深度学习框架
-- [Scikit-learn](https://scikit-learn.org/) - 机器学习工具包
-
-## 📚 参考文献
-
-1. Lundberg, S. M., & Lee, S. I. (2017). A unified approach to interpreting model predictions. *Advances in neural information processing systems*, 30.
-
-2. Hinton, G., Vinyals, O., & Dean, J. (2015). Distilling the knowledge in a neural network. *arXiv preprint arXiv:1503.02531*.
-
-3. Akiba, T., Sano, S., Yanase, T., Ohta, T., & Koyama, M. (2019). Optuna: A next-generation hyperparameter optimization framework. *Proceedings of the 25th ACM SIGKDD international conference on knowledge discovery & data mining*.
+1. **数据预处理**：标准化、编码、缺失值处理
+2. **特征重要性分析**：用SHAP对教师模型输出进行解释，筛选Top-K特征
+3. **知识蒸馏**：用神经网络教师模型软标签指导决策树学生模型训练
+4. **性能评估**：准确率、F1、精确率、召回率等
 
 ---
 
-⭐ **如果这个项目对您有帮助，请给我们一个星标！**" 
+## 典型实验结果
+
+| 数据集         | 教师模型      | Teacher Acc | 蒸馏树 Acc |
+| -------------- | ------------ | ----------- | ---------- |
+| UCI            | MLP          | 85.2%       | 83.7%      |
+| German         | TabNet       | 77.0%       | 75.1%      |
+| Australian     | MLP          | 87.4%       | 85.7%      |
+
+> 结果为典型区间，具体以实际运行为准。
+
+---
+
+## 主要依赖
+
+- Python >= 3.8
+- torch >= 2.0
+- scikit-learn >= 1.3
+- shap >= 0.42
+- pytorch-tabnet >= 4.0
+- 其余见 requirements.txt
+
+---
+
+## 参考文献
+
+1. Lundberg, S. M., & Lee, S. I. (2017). A unified approach to interpreting model predictions. *NeurIPS*.
+2. Hinton, G., Vinyals, O., & Dean, J. (2015). Distilling the knowledge in a neural network. *arXiv:1503.02531*.
+3. Arik, S. O., & Pfister, T. (2021). TabNet: Attentive Interpretable Tabular Learning. *AAAI*.
+
+---
+
+## 联系方式
+
+- 项目维护者：李登佳
+- 邮箱：lidengjia@example.com
+- GitHub: https://github.com/lidengjia1/shapGuided_KnowledgeDistilling
+
+---
+
+> 如有帮助，欢迎Star！

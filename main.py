@@ -130,14 +130,13 @@ def main():
         # 5. 全特征知识蒸馏实验
         # ========================
         print(f"\n🌟 Phase 5: All-Feature Knowledge Distillation")
-        print(f"   Running all-feature distillation experiments with Optuna optimization...")
+        print(f"   Running all-feature distillation experiments without Optuna...")
         
-        all_feature_distillation_results = distillator.run_all_feature_distillation_with_optuna(
+        all_feature_distillation_results = distillator.run_all_feature_distillation(
             dataset_names=['uci', 'german', 'australian'],
             temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5  
             alpha_range=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # Alpha: 0.1-0.9 (步长0.1)
-            max_depth_range=[4, 5, 6, 7, 8],  # Depth: 4-8
-            n_trials=50  # Optuna优化试验次数
+            max_depth_range=[4, 5, 6, 7, 8]  # Depth: 4-8
         )
         
         print(f"   ✅ All-feature knowledge distillation completed")
@@ -146,16 +145,15 @@ def main():
         # 6. Top-k知识蒸馏实验
         # ========================
         print(f"\n🧪 Phase 6: Top-k Knowledge Distillation Experiments")
-        print(f"   Running comprehensive distillation experiments with Optuna optimization...")
+        print(f"   Running comprehensive distillation experiments without Optuna...")
         
         # Top-k特征蒸馏实验
-        top_k_distillation_results = distillator.run_comprehensive_distillation_with_optuna(
+        top_k_distillation_results = distillator.run_comprehensive_distillation(
             dataset_names=['uci', 'german', 'australian'],
             k_range=(5, 8),            # k: 5-8
             temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5  
             alpha_range=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # Alpha: 0.1-0.9 (步长0.1)
-            max_depth_range=[4, 5, 6, 7, 8],        # Depth: 4-8
-            n_trials=50  # Optuna优化试验次数
+            max_depth_range=[4, 5, 6, 7, 8]        # Depth: 4-8
         )
         
         print(f"   ✅ Top-k knowledge distillation experiments completed")

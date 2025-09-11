@@ -34,7 +34,6 @@ from neural_models import TeacherModelTrainer
 from shap_analysis import SHAPAnalyzer
 from distillation_module import KnowledgeDistillator
 from experiment_manager import ExperimentManager
-from ablation_visualizer import TopKAblationVisualizer
 from tree_rules_analyzer import DecisionTreeRulesAnalyzer
 
 warnings.filterwarnings('ignore')
@@ -187,16 +186,8 @@ def main():
         # 创建性能可视化
         viz_path = experiment_manager.create_performance_visualization(master_df)
         
-        # 创建Top-k消融实验可视化 - 使用完整的参数网格结果
-        try:
-            ablation_visualizer = TopKAblationVisualizer()
-            ablation_viz_path = ablation_visualizer.create_comprehensive_ablation_plots(
-                top_k_distillation_results, all_feature_distillation_results
-            )
-            print(f"   ✅ Top-k ablation visualization completed")
-        except Exception as e:
-            print(f"   ⚠️  Error creating ablation visualization: {str(e)}")
-            ablation_viz_path = None
+        # 创建Top-K参数分析图 (2×2布局)
+        topk_param_viz_path = experiment_manager.create_topk_parameter_analysis(top_k_distillation_results)
         
         # 提取最优蒸馏树的决策规则
         rules_extractor = DecisionTreeRulesAnalyzer()
@@ -219,10 +210,6 @@ def main():
         print(f"   📊 Model Comparison Excel: {comparison_excel_path}")
         print(f"   📋 Master Excel report: {master_excel_path}")
         print(f"   📈 Performance charts: {viz_path}")
-        if ablation_viz_path:
-            print(f"   🔬 Ablation study plots: {ablation_viz_path}")
-        else:
-            print(f"   🔬 Ablation study plots: Skipped (simplified version)")
         print(f"   🌳 Decision tree rules: {rules_excel_path}")
         print(f"   📄 Summary report: {summary_path}")
         

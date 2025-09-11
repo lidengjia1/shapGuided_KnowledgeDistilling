@@ -6,6 +6,7 @@ Neural Network Models Module
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
@@ -13,8 +14,10 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 RANDOM_SEED = 42
 torch.manual_seed(RANDOM_SEED)
 
+# ===========================
+# 1️⃣ UCI Credit Dataset - MLP
+# ===========================
 class MLP_UCI(nn.Module):
-    """UCI Credit Dataset - MLP多层感知机"""
     def __init__(self, input_dim):
         super(MLP_UCI, self).__init__()
         self.net = nn.Sequential(
@@ -22,7 +25,8 @@ class MLP_UCI(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, 1)  # 输出raw logits，不用Sigmoid
+            nn.Linear(32, 1),
+            nn.Sigmoid()  # 输出违约概率
         )
 
     def forward(self, x):
@@ -37,8 +41,7 @@ class MLP_UCI(nn.Module):
             elif not isinstance(x, torch.Tensor):
                 x = torch.FloatTensor(x)
             
-            logits = self.forward(x)
-            probs = torch.sigmoid(logits)
+            probs = self.forward(x)
             
             # 对于二分类，返回两个类别的概率
             prob_positive = probs.numpy().flatten()
@@ -47,25 +50,30 @@ class MLP_UCI(nn.Module):
             # 返回形状为 (n_samples, 2) 的概率数组
             return np.column_stack([prob_negative, prob_positive])
 
+# ===========================
+# 2️⃣ German Credit Dataset - RBF Network
+# ===========================
 class RBF_German(nn.Module):
-    """German Credit Dataset - RBF径向基函数网络"""
-    def __init__(self, input_dim, num_rbf=50):
+    def __init__(self, input_dim, num_rbf=30):
         super(RBF_German, self).__init__()
         self.num_rbf = num_rbf
         self.centers = nn.Parameter(torch.randn(num_rbf, input_dim))
         self.beta = nn.Parameter(torch.ones(1)*1.0)
-        self.linear = nn.Linear(num_rbf, 1)  # 输出raw logits
+        self.linear = nn.Linear(num_rbf, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def rbf_layer(self, x):
-        x_expanded = x.unsqueeze(1)
-        c_expanded = self.centers.unsqueeze(0)
-        dist_sq = ((x_expanded - c_expanded)**2).sum(-1)
+        # 计算高斯 RBF 激活
+        # ||x-c||^2 = (x-c)^2.sum(dim=1)
+        x_expanded = x.unsqueeze(1)          # [batch,1,input_dim]
+        c_expanded = self.centers.unsqueeze(0)  # [1,num_rbf,input_dim]
+        dist_sq = ((x_expanded - c_expanded)**2).sum(-1)  # [batch,num_rbf]
         return torch.exp(-self.beta * dist_sq)
 
     def forward(self, x):
-        phi = self.rbf_layer(x)
+        phi = self.rbf_layer(x)   # RBF 隐藏层输出
         out = self.linear(phi)
-        return out  # raw logits
+        return self.sigmoid(out)
     
     def predict_proba(self, x):
         """用于推理的概率输出"""
@@ -76,8 +84,7 @@ class RBF_German(nn.Module):
             elif not isinstance(x, torch.Tensor):
                 x = torch.FloatTensor(x)
             
-            logits = self.forward(x)
-            probs = torch.sigmoid(logits)
+            probs = self.forward(x)
             
             # 对于二分类，返回两个类别的概率
             prob_positive = probs.numpy().flatten()
@@ -86,15 +93,19 @@ class RBF_German(nn.Module):
             # 返回形状为 (n_samples, 2) 的概率数组
             return np.column_stack([prob_negative, prob_positive])
 
+# ===========================
+# 3️⃣ Australian Credit - Autoencoder + MLP
+# ===========================
 class Autoencoder(nn.Module):
-    """自编码器"""
     def __init__(self, input_dim, latent_dim):
         super(Autoencoder, self).__init__()
+        # 编码器
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 16),
             nn.ReLU(),
             nn.Linear(16, latent_dim)
         )
+        # 解码器
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 16),
             nn.ReLU(),
@@ -107,20 +118,20 @@ class Autoencoder(nn.Module):
         return x_recon, z
 
 class AE_MLP_Australian(nn.Module):
-    """Australian Credit - 自编码器增强MLP"""
     def __init__(self, input_dim, latent_dim=8):
         super(AE_MLP_Australian, self).__init__()
         self.ae = Autoencoder(input_dim, latent_dim)
         self.classifier = nn.Sequential(
             nn.Linear(latent_dim, 32),
             nn.ReLU(),
-            nn.Linear(32, 1)  # 输出raw logits
+            nn.Linear(32,1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         _, z = self.ae(x)
         out = self.classifier(z)
-        return out  # raw logits
+        return out
     
     def predict_proba(self, x):
         """用于推理的概率输出"""
@@ -131,8 +142,7 @@ class AE_MLP_Australian(nn.Module):
             elif not isinstance(x, torch.Tensor):
                 x = torch.FloatTensor(x)
             
-            logits = self.forward(x)
-            probs = torch.sigmoid(logits)
+            probs = self.forward(x)
             
             # 对于二分类，返回两个类别的概率
             prob_positive = probs.numpy().flatten()
@@ -152,7 +162,7 @@ class TeacherModelTrainer:
         if dataset_name == 'uci':
             return MLP_UCI(input_dim)
         elif dataset_name == 'german':
-            return RBF_German(input_dim)
+            return RBF_German(input_dim, num_rbf=30)  # 使用30个RBF中心
         elif dataset_name == 'australian':
             return AE_MLP_Australian(input_dim)
         else:
@@ -168,7 +178,9 @@ class TeacherModelTrainer:
         pos_weight_tensor = torch.FloatTensor([pos_weight]).to(self.device)
         
         optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-        criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor)
+        
+        # 选择合适的损失函数 - 现在模型输出sigmoid概率
+        criterion = nn.BCELoss()  # 直接使用BCE损失而不是BCEWithLogitsLoss
         
         X_train_tensor = torch.FloatTensor(X_train).to(self.device)
         y_train_tensor = torch.FloatTensor(y_train).view(-1, 1).to(self.device)
@@ -184,16 +196,16 @@ class TeacherModelTrainer:
             # 训练阶段
             model.train()
             optimizer.zero_grad()
-            logits = model(X_train_tensor)
-            loss = criterion(logits, y_train_tensor)
+            probs = model(X_train_tensor)  # 现在是概率输出
+            loss = criterion(probs, y_train_tensor)
             loss.backward()
             optimizer.step()
             
             # 验证阶段
             model.eval()
             with torch.no_grad():
-                val_logits = model(X_val_tensor)
-                val_loss = criterion(val_logits, y_val_tensor).item()
+                val_probs = model(X_val_tensor)  # 现在是概率输出
+                val_loss = criterion(val_probs, y_val_tensor).item()
             
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -237,13 +249,11 @@ class TeacherModelTrainer:
         model.eval()
         with torch.no_grad():
             X_test_tensor = torch.FloatTensor(data_dict['X_test']).to(self.device)
-            logits = model(X_test_tensor)
-            probs = torch.sigmoid(logits).cpu().numpy().flatten()
+            probs = model(X_test_tensor).cpu().numpy().flatten()  # 直接获取概率
             
             # 在验证集上寻找最优阈值
             X_val_tensor = torch.FloatTensor(data_dict['X_val']).to(self.device)
-            val_logits = model(X_val_tensor)
-            val_probs = torch.sigmoid(val_logits).cpu().numpy().flatten()
+            val_probs = model(X_val_tensor).cpu().numpy().flatten()  # 直接获取概率
             
             # 寻找最优阈值（最大化F1分数）
             best_threshold = 0.5

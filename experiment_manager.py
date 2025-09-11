@@ -558,19 +558,117 @@ class ExperimentManager:
         print(f"   ✅ Results exported to: {excel_path}")
         return excel_path, results_df
     
+    def create_topk_parameter_analysis(self, top_k_distillation_results):
+        """创建Top-K蒸馏参数分析图 - 2×2布局"""
+        print(f"📊 Creating Top-K parameter analysis visualization...")
+        
+        # 数据集对应的神经网络模型映射
+        dataset_model_mapping = {
+            'uci': 'MLP_UCI',
+            'german': 'RBF_German', 
+            'australian': 'AE_MLP_Australian'
+        }
+        
+        # 收集所有结果数据
+        all_results = []
+        for dataset_name, dataset_results in top_k_distillation_results.items():
+            if 'best_config' in dataset_results and 'best' in dataset_results:
+                config = dataset_results['best_config']
+                result = dataset_results['best']
+                
+                all_results.append({
+                    'Dataset': dataset_name.upper(),
+                    'Neural_Model': dataset_model_mapping.get(dataset_name, 'Unknown'),
+                    'K': config.get('k', 0),
+                    'Temperature': config.get('temperature', 0),
+                    'Alpha': config.get('alpha', 0),
+                    'Max_Depth': config.get('max_depth', 0),
+                    'Accuracy': result.get('accuracy', 0)
+                })
+        
+        if not all_results:
+            print("   ⚠️  No Top-K results available for parameter analysis")
+            return None
+        
+        df = pd.DataFrame(all_results)
+        
+        # 创建2×2子图布局
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']  # 三个数据集的颜色
+        
+        # 1. Top-K特征数量对准确率的影响
+        ax1 = axes[0, 0]
+        for i, (dataset, group) in enumerate(df.groupby('Dataset')):
+            model_name = group['Neural_Model'].iloc[0]
+            ax1.scatter(group['K'], group['Accuracy'], 
+                       label=f'{dataset} ({model_name})', 
+                       color=colors[i], s=100, alpha=0.7)
+        ax1.set_title('Top-K Features vs Accuracy', fontweight='bold', fontsize=14)
+        ax1.set_xlabel('Number of Top-K Features')
+        ax1.set_ylabel('Accuracy')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 2. 树深度对准确率的影响
+        ax2 = axes[0, 1]
+        for i, (dataset, group) in enumerate(df.groupby('Dataset')):
+            model_name = group['Neural_Model'].iloc[0]
+            ax2.scatter(group['Max_Depth'], group['Accuracy'], 
+                       label=f'{dataset} ({model_name})', 
+                       color=colors[i], s=100, alpha=0.7)
+        ax2.set_title('Tree Depth vs Accuracy', fontweight='bold', fontsize=14)
+        ax2.set_xlabel('Maximum Tree Depth')
+        ax2.set_ylabel('Accuracy')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        # 3. 温度参数对准确率的影响
+        ax3 = axes[1, 0]
+        for i, (dataset, group) in enumerate(df.groupby('Dataset')):
+            model_name = group['Neural_Model'].iloc[0]
+            ax3.scatter(group['Temperature'], group['Accuracy'], 
+                       label=f'{dataset} ({model_name})', 
+                       color=colors[i], s=100, alpha=0.7)
+        ax3.set_title('Temperature vs Accuracy', fontweight='bold', fontsize=14)
+        ax3.set_xlabel('Knowledge Distillation Temperature')
+        ax3.set_ylabel('Accuracy')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # 4. Alpha加权参数对准确率的影响
+        ax4 = axes[1, 1]
+        for i, (dataset, group) in enumerate(df.groupby('Dataset')):
+            model_name = group['Neural_Model'].iloc[0]
+            ax4.scatter(group['Alpha'], group['Accuracy'], 
+                       label=f'{dataset} ({model_name})', 
+                       color=colors[i], s=100, alpha=0.7)
+        ax4.set_title('Alpha Weight vs Accuracy', fontweight='bold', fontsize=14)
+        ax4.set_xlabel('Alpha (Soft/Hard Label Weight)')
+        ax4.set_ylabel('Accuracy')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        viz_path = f"{self.results_dir}/topk_parameter_analysis.png"
+        plt.savefig(viz_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"   ✅ Top-K parameter analysis saved: {viz_path}")
+        return viz_path
+    
     def create_performance_visualization(self, master_df):
-        """创建性能可视化图表 - 适配master结果表格"""
+        """创建简化的性能可视化图表"""
         print(f"📈 Creating performance visualizations...")
         
-        # 创建多子图布局
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        # 创建1×2子图布局
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         
         # 1. 各数据集最佳模型对比
-        ax1 = axes[0, 0]
+        ax1 = axes[0]
         best_by_dataset = master_df.groupby('Dataset')['Accuracy'].max().reset_index()
         bars1 = ax1.bar(best_by_dataset['Dataset'], best_by_dataset['Accuracy'], 
                        color=['#FF6B6B', '#4ECDC4', '#45B7D1'])
-        ax1.set_title('Best Model Accuracy by Dataset', fontweight='bold', fontsize=12)
+        ax1.set_title('Best Model Accuracy by Dataset', fontweight='bold', fontsize=14)
         ax1.set_ylabel('Accuracy')
         ax1.set_ylim(0.7, 1.0)
         
@@ -581,103 +679,11 @@ class ExperimentManager:
                     f'{height:.3f}', ha='center', va='bottom', fontweight='bold')
         
         # 2. 模型类型性能对比
-        ax2 = axes[0, 1]
+        ax2 = axes[1]
         model_performance = master_df.groupby('Model_Type')['Accuracy'].mean().sort_values(ascending=True)
         model_performance.plot(kind='barh', ax=ax2, color='skyblue')
-        ax2.set_title('Average Performance by Model Type', fontweight='bold', fontsize=12)
+        ax2.set_title('Average Performance by Model Type', fontweight='bold', fontsize=14)
         ax2.set_xlabel('Average Accuracy')
-        
-        # 3. 特征数量对性能的影响
-        ax3 = axes[1, 0]
-        feature_data = master_df[master_df['Feature_Count'] != 'N/A'].copy()
-        if not feature_data.empty:
-            feature_data['Feature_Count'] = pd.to_numeric(feature_data['Feature_Count'])
-            feature_performance = feature_data.groupby('Feature_Count')['Accuracy'].mean()
-            ax3.scatter(feature_performance.index, feature_performance.values, 
-                       s=100, alpha=0.7, color='orange')
-            ax3.plot(feature_performance.index, feature_performance.values, 
-                    linestyle='--', alpha=0.5, color='orange')
-            ax3.set_title('Impact of Feature Count on Performance', fontweight='bold', fontsize=12)
-            ax3.set_xlabel('Number of Features')
-            ax3.set_ylabel('Average Accuracy')
-            ax3.grid(True, alpha=0.3)
-        
-        # 4. 知识蒸馏vs非蒸馏对比
-        ax4 = axes[1, 1]
-        distillation_data = master_df.copy()
-        distillation_data['Is_Distillation'] = distillation_data['Model_Type'].str.contains('Distillation')
-        distill_performance = distillation_data.groupby('Is_Distillation')['Accuracy'].mean()
-        
-        labels = ['No Distillation', 'With Distillation']
-        colors = ['lightcoral', 'lightgreen']
-        bars4 = ax4.bar(labels, distill_performance.values, color=colors)
-        ax4.set_title('Knowledge Distillation Impact', fontweight='bold', fontsize=12)
-        ax4.set_ylabel('Average Accuracy')
-        
-        # 添加数值标签
-        for bar in bars4:
-            height = bar.get_height()
-            ax4.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{height:.3f}', ha='center', va='bottom', fontweight='bold')
-        
-        plt.tight_layout()
-        viz_path = f"{self.results_dir}/master_performance_analysis.png"
-        plt.savefig(viz_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        print(f"   ✅ Performance visualization saved: {viz_path}")
-        return viz_path
-        """创建性能可视化图表"""
-        print(f"📈 Creating performance visualizations...")
-        
-        # 创建多子图布局
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        
-        # 1. 各数据集最佳模型对比
-        ax1 = axes[0, 0]
-        best_by_dataset = results_df.groupby('Dataset')['Accuracy'].max().reset_index()
-        bars1 = ax1.bar(best_by_dataset['Dataset'], best_by_dataset['Accuracy'], 
-                       color=['#FF6B6B', '#4ECDC4', '#45B7D1'])
-        ax1.set_title('Best Model Accuracy by Dataset', fontweight='bold', fontsize=12)
-        ax1.set_ylabel('Accuracy')
-        ax1.set_ylim(0.7, 1.0)
-        
-        # 添加数值标签
-        for bar in bars1:
-            height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{height:.3f}', ha='center', va='bottom', fontweight='bold')
-        
-        # 2. 教师vs学生模型性能对比
-        ax2 = axes[0, 1]
-        teacher_student_comparison = results_df.groupby(['Dataset', 'Model_Type'])['Accuracy'].max().unstack()
-        teacher_student_comparison.plot(kind='bar', ax=ax2, color=['#FF6B6B', '#4ECDC4'])
-        ax2.set_title('Teacher vs Student Model Performance', fontweight='bold', fontsize=12)
-        ax2.set_ylabel('Accuracy')
-        ax2.legend(['Student', 'Teacher'])
-        ax2.tick_params(axis='x', rotation=45)
-        
-        # 3. Top-k特征数量对性能的影响
-        ax3 = axes[1, 0]
-        student_data = results_df[results_df['Model_Type'] == 'Student']
-        if not student_data.empty:
-            k_performance = student_data.groupby('k_features')['Accuracy'].mean()
-            ax3.plot(k_performance.index, k_performance.values, marker='o', linewidth=2, markersize=8)
-            ax3.set_title('Impact of k (Number of Features) on Performance', fontweight='bold', fontsize=12)
-            ax3.set_xlabel('Number of Top-k Features')
-            ax3.set_ylabel('Average Accuracy')
-            ax3.grid(True, alpha=0.3)
-        
-        # 4. 温度参数对性能的影响
-        ax4 = axes[1, 1]
-        if not student_data.empty:
-            temp_performance = student_data.groupby('Temperature')['Accuracy'].mean()
-            ax4.plot(temp_performance.index, temp_performance.values, marker='s', 
-                    linewidth=2, markersize=8, color='orange')
-            ax4.set_title('Impact of Temperature on Performance', fontweight='bold', fontsize=12)
-            ax4.set_xlabel('Temperature')
-            ax4.set_ylabel('Average Accuracy')
-            ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
         viz_path = f"{self.results_dir}/performance_analysis.png"
@@ -777,7 +783,8 @@ Credit Scoring Model Optimization System - Experiment Summary Report
 -----------------------------------------
 • 主要结果表格 | Master Results Table: master_results_table_*.xlsx
 • SHAP可视化 | SHAP Visualization: combined_shap_analysis.png
-• 性能分析 | Performance Analysis: master_performance_analysis.png
+• 性能分析 | Performance Analysis: performance_analysis.png
+• Top-K参数分析 | Top-K Parameter Analysis: topk_parameter_analysis.png
 • 模型文件 | Model Files: teacher_model_*.pkl, teacher_model_*.pth
 • 实验数据 | Experiment Data: processed_data.pkl, shap_results.pkl
 

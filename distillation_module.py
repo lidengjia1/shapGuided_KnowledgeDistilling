@@ -273,10 +273,32 @@ class KnowledgeDistillator:
             return f1_score(y_test, y_pred, average='weighted')
         
         study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=50)
+        
+        try:
+            study.optimize(objective, n_trials=50)
+            
+            # 检查是否有完成的试验
+            if len(study.trials) > 0 and study.best_trial is not None:
+                best_params = study.best_params
+            else:
+                # 如果Optuna失败，使用默认参数
+                print("      Warning: Optuna optimization failed, using default decision tree parameters")
+                best_params = {
+                    'max_depth': 5,
+                    'min_samples_split': 5,
+                    'min_samples_leaf': 2,
+                    'criterion': 'gini'
+                }
+        except Exception as e:
+            print(f"      Error in Optuna optimization: {str(e)}, using default parameters")
+            best_params = {
+                'max_depth': 5,
+                'min_samples_split': 5,
+                'min_samples_leaf': 2,
+                'criterion': 'gini'
+            }
         
         # 使用最优参数训练最终模型
-        best_params = study.best_params
         model = DecisionTreeClassifier(**best_params, random_state=42)
         model.fit(X_train, y_train)
         
@@ -390,20 +412,49 @@ class KnowledgeDistillator:
                         # 运行Optuna优化
                         study = optuna.create_study(direction='maximize', 
                                                   sampler=optuna.samplers.TPESampler(seed=42))
-                        study.optimize(objective, n_trials=min(10, n_trials//total_combinations))
                         
-                        # 获取最佳结果
-                        best_params = study.best_params
-                        current_result = self.train_student_model_with_extra_params(
-                            dataset_name=dataset_name,
-                            model_type_name='decision_tree',
-                            use_all_features=True,
-                            temperature=temperature,
-                            alpha=alpha,
-                            max_depth=max_depth,
-                            min_samples_split=best_params['min_samples_split'],
-                            min_samples_leaf=best_params['min_samples_leaf']
-                        )
+                        try:
+                            study.optimize(objective, n_trials=min(10, n_trials//total_combinations))
+                            
+                            # 检查是否有完成的试验
+                            if len(study.trials) > 0 and study.best_trial is not None:
+                                best_params = study.best_params
+                                current_result = self.train_student_model_with_extra_params(
+                                    dataset_name=dataset_name,
+                                    model_type_name='decision_tree',
+                                    use_all_features=True,
+                                    temperature=temperature,
+                                    alpha=alpha,
+                                    max_depth=max_depth,
+                                    min_samples_split=best_params['min_samples_split'],
+                                    min_samples_leaf=best_params['min_samples_leaf']
+                                )
+                            else:
+                                # 如果Optuna失败，使用默认参数
+                                print(f"      Warning: Optuna optimization failed, using default parameters")
+                                current_result = self.train_student_model_with_extra_params(
+                                    dataset_name=dataset_name,
+                                    model_type_name='decision_tree',
+                                    use_all_features=True,
+                                    temperature=temperature,
+                                    alpha=alpha,
+                                    max_depth=max_depth,
+                                    min_samples_split=5,    # 默认值
+                                    min_samples_leaf=2      # 默认值
+                                )
+                        except Exception as e:
+                            # 如果出现任何错误，使用默认参数
+                            print(f"      Error in Optuna optimization: {str(e)}, using default parameters")
+                            current_result = self.train_student_model_with_extra_params(
+                                dataset_name=dataset_name,
+                                model_type_name='decision_tree',
+                                use_all_features=True,
+                                temperature=temperature,
+                                alpha=alpha,
+                                max_depth=max_depth,
+                                min_samples_split=5,    # 默认值
+                                min_samples_leaf=2      # 默认值
+                            )
                         
                         if current_result['accuracy'] > best_accuracy:
                             best_accuracy = current_result['accuracy']
@@ -515,21 +566,52 @@ class KnowledgeDistillator:
                             # 运行Optuna优化
                             study = optuna.create_study(direction='maximize', 
                                                       sampler=optuna.samplers.TPESampler(seed=42))
-                            study.optimize(objective, n_trials=min(5, n_trials//total_combinations))
                             
-                            # 获取最佳结果
-                            best_params = study.best_params
-                            current_result = self.train_student_model_with_extra_params(
-                                dataset_name=dataset_name,
-                                model_type_name='decision_tree',
-                                k=k,
-                                temperature=temperature,
-                                alpha=alpha,
-                                max_depth=max_depth,
-                                use_all_features=False,
-                                min_samples_split=best_params['min_samples_split'],
-                                min_samples_leaf=best_params['min_samples_leaf']
-                            )
+                            try:
+                                study.optimize(objective, n_trials=min(5, n_trials//total_combinations))
+                                
+                                # 检查是否有完成的试验
+                                if len(study.trials) > 0 and study.best_trial is not None:
+                                    best_params = study.best_params
+                                    current_result = self.train_student_model_with_extra_params(
+                                        dataset_name=dataset_name,
+                                        model_type_name='decision_tree',
+                                        k=k,
+                                        temperature=temperature,
+                                        alpha=alpha,
+                                        max_depth=max_depth,
+                                        use_all_features=False,
+                                        min_samples_split=best_params['min_samples_split'],
+                                        min_samples_leaf=best_params['min_samples_leaf']
+                                    )
+                                else:
+                                    # 如果Optuna失败，使用默认参数
+                                    print(f"      Warning: Optuna optimization failed for k={k}, using default parameters")
+                                    current_result = self.train_student_model_with_extra_params(
+                                        dataset_name=dataset_name,
+                                        model_type_name='decision_tree',
+                                        k=k,
+                                        temperature=temperature,
+                                        alpha=alpha,
+                                        max_depth=max_depth,
+                                        use_all_features=False,
+                                        min_samples_split=5,    # 默认值
+                                        min_samples_leaf=2      # 默认值
+                                    )
+                            except Exception as e:
+                                # 如果出现任何错误，使用默认参数
+                                print(f"      Error in Optuna optimization for k={k}: {str(e)}, using default parameters")
+                                current_result = self.train_student_model_with_extra_params(
+                                    dataset_name=dataset_name,
+                                    model_type_name='decision_tree',
+                                    k=k,
+                                    temperature=temperature,
+                                    alpha=alpha,
+                                    max_depth=max_depth,
+                                    use_all_features=False,
+                                    min_samples_split=5,    # 默认值
+                                    min_samples_leaf=2      # 默认值
+                                )
                             
                             if current_result['accuracy'] > best_accuracy:
                                 best_accuracy = current_result['accuracy']

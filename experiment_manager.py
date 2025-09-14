@@ -45,9 +45,38 @@ class ExperimentManager:
                     'training_info': model_info.get('training_info', {})
                 }, f)
             
-            # 保存PyTorch模型状态
-            torch.save(model_info['model'].state_dict(), torch_model_path)
-            print(f"   ✅ Teacher model saved: {dataset_name}")
+            # 保存模型状态（根据模型类型选择不同的保存方式）
+            model = model_info['model']
+            try:
+                if hasattr(model, 'state_dict'):
+                    # PyTorch模型
+                    torch.save(model.state_dict(), torch_model_path)
+                    print(f"   ✅ PyTorch model saved: {dataset_name}")
+                elif hasattr(model, 'model') and hasattr(model.model, 'save_model'):
+                    # XGBoost模型
+                    xgb_path = torch_model_path.replace('.pth', '.json')
+                    model.model.save_model(xgb_path)
+                    print(f"   ✅ XGBoost model saved: {dataset_name}")
+                elif hasattr(model, 'model'):
+                    # TabNet或其他sklearn-like模型
+                    pkl_path = torch_model_path.replace('.pth', '.pkl')
+                    with open(pkl_path, 'wb') as f:
+                        pickle.dump(model.model, f)
+                    print(f"   ✅ TabNet/sklearn model saved: {dataset_name}")
+                else:
+                    # 其他模型，使用pickle保存整个对象
+                    pkl_path = torch_model_path.replace('.pth', '.pkl')
+                    with open(pkl_path, 'wb') as f:
+                        pickle.dump(model, f)
+                    print(f"   ✅ Generic model saved: {dataset_name}")
+            except Exception as e:
+                print(f"   ⚠️ Model saving failed for {dataset_name}: {e}")
+                print(f"   📝 Model type: {type(model)}")
+                # 使用通用pickle保存作为后备
+                pkl_path = torch_model_path.replace('.pth', '.pkl')
+                with open(pkl_path, 'wb') as f:
+                    pickle.dump(model, f)
+                print(f"   ✅ Fallback pickle save completed: {dataset_name}")
         
         # 保存处理后的数据
         data_path = f"{self.results_dir}/processed_data.pkl"
@@ -239,10 +268,42 @@ class ExperimentManager:
         best_f1 = -1
         
         print(f"   🔍 Debug: Analyzing results structure...")
+        print(f"   🔍 Debug: Results type: {type(results)}")
         
         # 处理嵌套字典结构
         if isinstance(results, dict):
-            # 检查是否是Top-k格式: {k: {temp: {alpha: {depth: result}}}}
+            print(f"   🔍 Debug: Results keys: {list(results.keys())}")
+            
+            # 检查是否是简单的 best 格式: {'best': {...}}
+            if 'best' in results and isinstance(results['best'], dict):
+                print(f"   🔍 Debug: Detected simple 'best' format")
+                best_result = results['best']
+                
+                # 检查best结果是否包含评估指标
+                if 'f1' in best_result or 'accuracy' in best_result:
+                    print(f"   🔍 Debug: Found metrics in best result")
+                    best_model = best_result.copy()
+                    
+                    # 检查是否有best_k（Top-k蒸馏结果）
+                    if 'best_k' in results:
+                        best_model['k'] = results['best_k']
+                        print(f"   🔍 Debug: Added k={results['best_k']} from best_k")
+                    
+                    best_f1 = best_result.get('f1', best_result.get('accuracy', 0))
+                    print(f"   ✅ Debug: Best model found from simple format - F1/Acc={best_f1:.4f}")
+                    return best_model
+                    
+                # 检查best结果是否有嵌套的model
+                elif 'model' in best_result and isinstance(best_result['model'], dict):
+                    print(f"   🔍 Debug: Found nested model in best result")
+                    model_result = best_result['model']
+                    if 'f1' in model_result or 'accuracy' in model_result:
+                        best_model = model_result.copy()
+                        best_f1 = model_result.get('f1', model_result.get('accuracy', 0))
+                        print(f"   ✅ Debug: Best model found from nested format - F1/Acc={best_f1:.4f}")
+                        return best_model
+            
+            # 原有的复杂格式解析逻辑
             first_key = next(iter(results.keys())) if results else None
             if first_key is not None and isinstance(results[first_key], dict):
                 first_sub_key = next(iter(results[first_key].keys())) if results[first_key] else None

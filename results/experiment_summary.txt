@@ -1,0 +1,79 @@
+
+信用评分模型优化系统 - 实验总结报告
+Credit Scoring Model Optimization System - Experiment Summary Report
+==================================================================================
+
+实验时间 | Experiment Time: 2025-09-13 16:06:16
+
+📊 实验概览 | Experiment Overview
+-----------------------------------------
+• 总模型数量 | Total Models: 9
+• 教师模型数量 | Teacher Models: 3
+• 数据集数量 | Number of Datasets: 3 (UCI, German, Australian)
+• 模型类型 | Model Types: 教师模型, 基础决策树, 全特征蒸馏, Top-k蒸馏
+• 特征选择方法 | Feature Selection: SHAP Top-k (k=5-10) + All Features
+
+🏆 最佳性能 | Best Performance
+-----------------------------------------
+• 最高准确率 | Highest Accuracy: 0.8551
+• 最佳模型 | Best Model: Teacher Model
+• 数据集 | Dataset: AUSTRALIAN
+• 特征选择 | Feature Selection: All Features
+• 配置 | Configuration: T=N/A, α=N/A
+
+📈 各数据集最佳结果 | Best Results by Dataset
+-----------------------------------------
+UCI Dataset:
+  • 最佳准确率 | Best Accuracy: 0.8200
+  • 模型类型 | Model Type: All-Feature Distillation Tree
+  • 特征选择 | Feature Selection: All Features
+  • 配置 | Config: T=4, α=0.1
+GERMAN Dataset:
+  • 最佳准确率 | Best Accuracy: 0.7850
+  • 模型类型 | Model Type: Teacher Model
+  • 特征选择 | Feature Selection: All Features
+  • 配置 | Config: T=N/A, α=N/A
+AUSTRALIAN Dataset:
+  • 最佳准确率 | Best Accuracy: 0.8551
+  • 模型类型 | Model Type: Teacher Model
+  • 特征选择 | Feature Selection: All Features
+  • 配置 | Config: T=N/A, α=N/A
+
+🔍 SHAP特征重要性分析 | SHAP Feature Importance Analysis
+-----------------------------------------
+UCI Dataset Top-3 Features:
+  1. Payment_Status_Apr: 0.0839
+  2. Bill_Amount_Sep: 0.0839
+  3. Bill_Amount_Jul: 0.0367
+GERMAN Dataset Top-3 Features:
+  1. Account_Status: 0.1267
+  2. Loan_Duration_Months: 0.1267
+  3. Loan_Purpose: 0.0723
+AUSTRALIAN Dataset Top-3 Features:
+  1. Feature_9: 0.0603
+  2. Feature_10: 0.0603
+  3. Feature_13: 0.0326
+
+🧠 模型性能对比 | Model Performance Comparison
+-----------------------------------------
+• Teacher Model:
+  - 平均准确率 | Average Accuracy: 0.8182
+  - 最佳准确率 | Best Accuracy: 0.8551
+• Baseline Decision Tree:
+  - 平均准确率 | Average Accuracy: 0.7822
+  - 最佳准确率 | Best Accuracy: 0.8551
+• All-Feature Distillation Tree:
+  - 平均准确率 | Average Accuracy: 0.8000
+  - 最佳准确率 | Best Accuracy: 0.8551
+
+📁 输出文件 | Output Files
+-----------------------------------------
+• 主要结果表格 | Master Results Table: master_results_table_*.xlsx
+• SHAP可视化 | SHAP Visualization: combined_shap_analysis.png
+• 性能分析 | Performance Analysis: performance_analysis.png
+• Top-K参数分析 | Top-K Parameter Analysis: topk_parameter_analysis.png
+• 模型文件 | Model Files: teacher_model_*.pkl, teacher_model_*.pth
+• 实验数据 | Experiment Data: processed_data.pkl, shap_results.pkl
+
+==================================================================================
+实验完成 | Experiment Completed Successfully

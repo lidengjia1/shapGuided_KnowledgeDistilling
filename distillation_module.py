@@ -44,12 +44,40 @@ class KnowledgeDistillator:
         X_test = data_dict['X_test']
         
         # 获取教师模型的软标签(概率分布)
-        train_logits = teacher_model.predict_proba(X_train)
-        test_logits = teacher_model.predict_proba(X_test)
+        train_logits = self._get_teacher_predictions(teacher_model, X_train)
+        test_logits = self._get_teacher_predictions(teacher_model, X_test)
         
         # 应用温度缩放，增强知识蒸馏效果
         train_soft_labels = self._apply_temperature(train_logits, temperature)
         test_soft_labels = self._apply_temperature(test_logits, temperature)
+        
+        return {
+            'train_soft_labels': train_soft_labels,
+            'test_soft_labels': test_soft_labels,
+            'teacher_logits_train': train_logits,
+            'teacher_logits_test': test_logits
+        }
+    
+    def _get_teacher_predictions(self, teacher_model, X):
+        """从教师模型获取预测概率 - 兼容PyTorch和sklearn模型"""
+        import torch
+        
+        # 检查是否是PyTorch模型
+        if hasattr(teacher_model, 'eval') and hasattr(teacher_model, 'forward'):
+            # PyTorch模型
+            teacher_model.eval()
+            device = next(teacher_model.parameters()).device
+            
+            with torch.no_grad():
+                X_tensor = torch.FloatTensor(X).to(device)
+                outputs = teacher_model(X_tensor)
+                # 对于二分类，将sigmoid输出转换为两类概率
+                probs_class1 = outputs.cpu().numpy().flatten()
+                probs_class0 = 1 - probs_class1
+                return np.column_stack([probs_class0, probs_class1])
+        else:
+            # sklearn模型
+            return teacher_model.predict_proba(X)
         
         return {
             'train_soft_labels': train_soft_labels,

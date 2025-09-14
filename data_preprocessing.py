@@ -1,151 +1,89 @@
 """
-数据预处理模块
-Data Preprocessing Module
+数据预处理模块 - 更新版
+Data Preprocessing Module - Updated Version
+适配新的神经网络训练框架
 """
 
+import torch
+import torch.nn as nn
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.impute import SimpleImputer
+import warnings
+warnings.filterwarnings('ignore')
 
-# 设置随机种子
-RANDOM_SEED = 42
-np.random.seed(RANDOM_SEED)
+# 设置随机种子确保可重现性
+torch.manual_seed(42)
+np.random.seed(42)
+
+# 设备配置
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"🔧 Using device: {device}")
 
 class DataPreprocessor:
-    """数据预处理类"""
+    """数据预处理器类"""
     
     def __init__(self):
         self.scalers = {}
-        self.encoders = {}
-        self.feature_mappings = self._create_feature_mappings()
+        self.label_encoders = {}
+        self.feature_names = {}
     
-    def _create_feature_mappings(self):
-        """创建真实特征名映射"""
-        return {
-            'german': {
-                'Status': 'Account_Status',
-                'Duration': 'Loan_Duration_Months', 
-                'Credit_history': 'Credit_History',
-                'Purpose': 'Loan_Purpose',
-                'Credit_amount': 'Credit_Amount',
-                'Savings': 'Savings_Account',
-                'Employment': 'Employment_Duration',
-                'Installment_rate': 'Installment_Rate',
-                'Personal_status': 'Personal_Status_Sex',
-                'Other_parties': 'Other_Debtors',
-                'Residence_since': 'Residence_Duration',
-                'Property_magnitude': 'Property_Type',
-                'Age': 'Age_Years',
-                'Other_payment_plans': 'Other_Installment_Plans',
-                'Housing': 'Housing_Type',
-                'Existing_credits': 'Existing_Credits_Count',
-                'Job': 'Job_Type',
-                'Num_dependents': 'Dependents_Count',
-                'Own_telephone': 'Telephone_Owner',
-                'Foreign_worker': 'Foreign_Worker'
-            },
-            'australian': {f'feature_{i}': f'Feature_{i+1}' for i in range(14)},
-            'uci': {
-                'X1': 'Credit_Limit',
-                'X2': 'Gender', 
-                'X3': 'Education',
-                'X4': 'Marriage',
-                'X5': 'Age',
-                'X6': 'Payment_Status_Sep',
-                'X7': 'Payment_Status_Aug',
-                'X8': 'Payment_Status_Jul',
-                'X9': 'Payment_Status_Jun',
-                'X10': 'Payment_Status_May',
-                'X11': 'Payment_Status_Apr',
-                'X12': 'Bill_Amount_Sep',
-                'X13': 'Bill_Amount_Aug',
-                'X14': 'Bill_Amount_Jul',
-                'X15': 'Bill_Amount_Jun',
-                'X16': 'Bill_Amount_May',
-                'X17': 'Bill_Amount_Apr',
-                'X18': 'Payment_Amount_Sep',
-                'X19': 'Payment_Amount_Aug',
-                'X20': 'Payment_Amount_Jul',
-                'X21': 'Payment_Amount_Jun',
-                'X22': 'Payment_Amount_May',
-                'X23': 'Payment_Amount_Apr'
-            }
-        }
-    
-    def load_and_preprocess_data(self):
-        """加载并预处理三个数据集"""
-        print("🔄 Loading and preprocessing datasets...")
+    def load_german_credit(self):
+        """加载German信用数据集"""
+        print("🔄 Loading German Credit dataset...")
         
-        # 1. German Credit Dataset
-        german_df = pd.read_csv('data/german_credit.csv')
-        print(f"German Credit original shape: {german_df.shape}")
+        # 从本地CSV文件加载
+        try:
+            df = pd.read_csv('data/german_credit.csv')
+        except FileNotFoundError:
+            print("❌ German credit data file not found. Please ensure 'data/german_credit.csv' exists.")
+            return None
         
-        # 处理分类变量
-        categorical_cols = ['Status', 'Credit_history', 'Purpose', 'Savings', 'Employment', 
-                          'Personal_status', 'Other_parties', 'Property_magnitude', 
-                          'Other_payment_plans', 'Housing', 'Job', 'Own_telephone', 'Foreign_worker']
+        print(f"German Credit original shape: {df.shape}")
         
-        german_processed = german_df.copy()
-        for col in categorical_cols:
-            if col in german_processed.columns:
-                le = LabelEncoder()
-                german_processed[col] = le.fit_transform(german_processed[col].astype(str))
-                self.encoders[f'german_{col}'] = le
+        # 检查目标列
+        if 'class' in df.columns:
+            # 将目标变量转换为二进制（1=良好信用，0=不良信用）
+            df['class'] = df['class'].replace({1: 1, 2: 0})  # 1=good, 2=bad -> 1=good, 0=bad
+            target_col = 'class'
+        elif 'Class' in df.columns:
+            df['Class'] = df['Class'].replace({1: 1, 2: 0})
+            target_col = 'Class'
+        else:
+            # 假设最后一列是目标列
+            target_col = df.columns[-1]
+            df[target_col] = df[target_col].replace({1: 1, 2: 0})
         
-        # 转换标签：1->0, 2->1
-        german_processed['Class'] = german_processed['Class'] - 1
+        # 识别分类变量和数值变量
+        categorical_cols = []
+        numerical_cols = []
         
-        # 2. Australian Credit Dataset
-        australian_df = pd.read_csv('data/australian_credit.csv')
-        print(f"Australian Credit original shape: {australian_df.shape}")
-        australian_processed = australian_df.copy()
+        for col in df.columns:
+            if col != target_col:
+                if df[col].dtype == 'object' or df[col].nunique() <= 10:
+                    categorical_cols.append(col)
+                else:
+                    numerical_cols.append(col)
         
-        # 3. UCI Credit Dataset
-        uci_df = pd.read_excel('data/uci_credit.xls')
-        print(f"UCI Credit original shape: {uci_df.shape}")
+        # 处理分类变量 - One-hot编码
+        if categorical_cols:
+            df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
         
-        # 去除第一行（标题行）和ID列
-        uci_df = uci_df.iloc[1:].reset_index(drop=True)
-        uci_df = uci_df.drop('Unnamed: 0', axis=1, errors='ignore')
+        # 分割特征和目标
+        X = df.drop(target_col, axis=1)
+        y = df[target_col]
         
-        # 重命名列名
-        feature_cols = [f'X{i}' for i in range(1, len(uci_df.columns))]
-        uci_df.columns = feature_cols + ['Y']
+        print(f"German Credit processed shape: {X.shape}")
+        print(f"Features: {X.shape[1]}, Samples: {X.shape[0]}")
         
-        # 确保数据类型正确
-        for col in uci_df.columns:
-            uci_df[col] = pd.to_numeric(uci_df[col], errors='coerce')
-        
-        # 删除包含NaN的行
-        uci_df = uci_df.dropna().reset_index(drop=True)
-        
-        # 标签列重命名为Class
-        uci_processed = uci_df.rename(columns={'Y': 'Class'})
-        
-        print(f"German Credit processed shape: {german_processed.shape}")
-        print(f"Australian Credit processed shape: {australian_processed.shape}")
-        print(f"UCI Credit processed shape: {uci_processed.shape}")
-        
-        return {
-            'german': german_processed,
-            'australian': australian_processed,
-            'uci': uci_processed
-        }
-    
-    def split_and_scale_data(self, df, dataset_name):
-        """划分并标准化数据 (6:2:2)"""
-        X = df.drop('Class', axis=1).values
-        y = df['Class'].values
-        
-        # 第一次划分：训练集(60%) vs 临时集(40%)
-        X_train, X_temp, y_train, y_temp = train_test_split(
-            X, y, test_size=0.4, random_state=RANDOM_SEED, stratify=y
+        # 分割数据集：60% 训练，20% 验证，20% 测试
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
         )
-        
-        # 第二次划分：验证集(20%) vs 测试集(20%)
-        X_val, X_test, y_val, y_test = train_test_split(
-            X_temp, y_temp, test_size=0.5, random_state=RANDOM_SEED, stratify=y_temp
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp, test_size=0.25, random_state=42, stratify=y_temp  # 0.25 x 0.8 = 0.2 of total
         )
         
         # 标准化特征
@@ -154,42 +92,238 @@ class DataPreprocessor:
         X_val_scaled = scaler.transform(X_val)
         X_test_scaled = scaler.transform(X_test)
         
-        self.scalers[dataset_name] = scaler
+        # 保存scaler和特征名
+        self.scalers['german'] = scaler
+        self.feature_names['german'] = list(X.columns)
         
-        # 获取原始特征名
-        original_feature_names = list(df.drop('Class', axis=1).columns)
+        print(f"German dataset split: Train: {X_train_scaled.shape}, Val: {X_val_scaled.shape}, Test: {X_test_scaled.shape}")
         
-        # 映射到真实特征名
-        feature_mapping = self.feature_mappings.get(dataset_name, {})
-        real_feature_names = [feature_mapping.get(name, name) for name in original_feature_names]
+        return X_train_scaled, X_val_scaled, X_test_scaled, y_train.values, y_val.values, y_test.values
+    
+    def load_australian_credit(self):
+        """加载Australian信用数据集"""
+        print("🔄 Loading Australian Credit dataset...")
         
-        print(f"{dataset_name} dataset split:")
-        print(f"  Train: {X_train_scaled.shape}, Val: {X_val_scaled.shape}, Test: {X_test_scaled.shape}")
-        print(f"  Class distribution - Train: {np.bincount(y_train)}, Val: {np.bincount(y_val)}, Test: {np.bincount(y_test)}")
+        try:
+            df = pd.read_csv('data/australian_credit.csv')
+        except FileNotFoundError:
+            print("❌ Australian credit data file not found. Please ensure 'data/australian_credit.csv' exists.")
+            return None
+        
+        print(f"Australian Credit original shape: {df.shape}")
+        
+        # 检查目标列
+        if 'Class' in df.columns:
+            target_col = 'Class'
+        elif 'class' in df.columns:
+            target_col = 'class'
+        else:
+            # 假设最后一列是目标列
+            target_col = df.columns[-1]
+        
+        # 确保目标变量是0和1
+        unique_values = df[target_col].unique()
+        if len(unique_values) == 2:
+            # 将目标变量映射为0和1
+            value_mapping = {unique_values[0]: 0, unique_values[1]: 1}
+            df[target_col] = df[target_col].map(value_mapping)
+        
+        # 处理缺失值
+        for col in df.columns:
+            if col != target_col:
+                if df[col].dtype == 'object':
+                    df[col].fillna(df[col].mode()[0], inplace=True)
+                else:
+                    df[col].fillna(df[col].median(), inplace=True)
+        
+        # 识别并处理分类变量
+        categorical_cols = []
+        for col in df.columns:
+            if col != target_col and (df[col].dtype == 'object' or df[col].nunique() <= 10):
+                categorical_cols.append(col)
+        
+        # One-hot编码
+        if categorical_cols:
+            df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+        
+        # 分割特征和目标
+        X = df.drop(target_col, axis=1)
+        y = df[target_col]
+        
+        print(f"Australian Credit processed shape: {X.shape}")
+        print(f"Features: {X.shape[1]}, Samples: {X.shape[0]}")
+        
+        # 分割数据集：60% 训练，20% 验证，20% 测试
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp, test_size=0.25, random_state=42, stratify=y_temp
+        )
+        
+        # 标准化特征
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # 保存scaler和特征名
+        self.scalers['australian'] = scaler
+        self.feature_names['australian'] = list(X.columns)
+        
+        print(f"Australian dataset split: Train: {X_train_scaled.shape}, Val: {X_val_scaled.shape}, Test: {X_test_scaled.shape}")
+        
+        return X_train_scaled, X_val_scaled, X_test_scaled, y_train.values, y_val.values, y_test.values
+    
+    def load_uci_credit(self):
+        """加载UCI信用数据集"""
+        print("🔄 Loading UCI Credit dataset...")
+        
+        try:
+            # 尝试读取Excel文件
+            df = pd.read_excel('data/uci_credit.xls', header=1, index_col=0)
+        except FileNotFoundError:
+            print("❌ UCI credit data file not found. Please ensure 'data/uci_credit.xls' exists.")
+            return None
+        except Exception as e:
+            print(f"❌ Error loading UCI credit data: {e}")
+            return None
+        
+        print(f"UCI Credit original shape: {df.shape}")
+        
+        # 重命名目标列
+        if 'default payment next month' in df.columns:
+            df.rename(columns={'default payment next month': 'DEFAULT'}, inplace=True)
+            target_col = 'DEFAULT'
+        elif 'DEFAULT' in df.columns:
+            target_col = 'DEFAULT'
+        else:
+            # 假设最后一列是目标列
+            target_col = df.columns[-1]
+        
+        # 处理异常值和缺失值
+        # 移除ID列如果存在
+        if 'ID' in df.columns:
+            df.drop('ID', axis=1, inplace=True)
+        
+        # 处理性别编码异常值
+        if 'SEX' in df.columns:
+            df['SEX'] = df['SEX'].replace({0: 2})  # 0替换为2，确保只有1和2
+        
+        # 处理教育和婚姻状况的异常值
+        if 'EDUCATION' in df.columns:
+            df['EDUCATION'] = df['EDUCATION'].replace({0: 4, 5: 4, 6: 4})  # 合并未知类别
+        
+        if 'MARRIAGE' in df.columns:
+            df['MARRIAGE'] = df['MARRIAGE'].replace({0: 3})  # 0替换为3
+        
+        # 分割特征和目标
+        X = df.drop(target_col, axis=1)
+        y = df[target_col]
+        
+        print(f"UCI Credit processed shape: {X.shape}")
+        print(f"Features: {X.shape[1]}, Samples: {X.shape[0]}")
+        
+        # 分割数据集：60% 训练，20% 验证，20% 测试
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp, test_size=0.25, random_state=42, stratify=y_temp
+        )
+        
+        # 标准化特征
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # 保存scaler和特征名
+        self.scalers['uci'] = scaler
+        self.feature_names['uci'] = list(X.columns)
+        
+        print(f"UCI dataset split: Train: {X_train_scaled.shape}, Val: {X_val_scaled.shape}, Test: {X_test_scaled.shape}")
+        
+        return X_train_scaled, X_val_scaled, X_test_scaled, y_train.values, y_val.values, y_test.values
+    
+    def split_and_scale_data(self, X, y, feature_names, test_size=0.2, val_size=0.2):
+        """分割和标准化数据"""
+        # 首先分割训练集和测试集
+        X_train_val, X_test, y_train_val, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=42, stratify=y
+        )
+        
+        # 再从训练集中分割出验证集
+        val_size_adjusted = val_size / (1 - test_size)  # 调整验证集比例
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train_val, y_train_val, test_size=val_size_adjusted, random_state=42, stratify=y_train_val
+        )
+        
+        # 标准化特征
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+        X_test = scaler.transform(X_test)
         
         return {
-            'X_train': X_train_scaled,
-            'X_val': X_val_scaled,
-            'X_test': X_test_scaled,
+            'X_train': X_train,
+            'X_val': X_val,
+            'X_test': X_test,
             'y_train': y_train,
             'y_val': y_val,
             'y_test': y_test,
-            'feature_names': real_feature_names,
-            'original_feature_names': original_feature_names
+            'feature_names': feature_names,
+            'scaler': scaler
         }
     
     def process_all_datasets(self):
-        """处理所有数据集并返回处理后的数据"""
+        """处理所有数据集"""
         print("📊 Processing all datasets...")
         
-        # 加载和预处理原始数据
-        raw_datasets = self.load_and_preprocess_data()
+        processed_data = {}
         
-        # 处理每个数据集
-        processed_datasets = {}
-        for dataset_name, df in raw_datasets.items():
-            print(f"\n🔧 Processing {dataset_name} dataset...")
-            processed_datasets[dataset_name] = self.split_and_scale_data(df, dataset_name)
+        # 处理German数据集
+        german_data = self.load_german_credit()
+        if german_data is not None:
+            X, y, feature_names = german_data
+            processed_data['german'] = self.split_and_scale_data(X, y, feature_names)
+            print(f"🔧 Processing german dataset...")
+            print(f"german dataset split:")
+            print(f"  Train: {processed_data['german']['X_train'].shape}, Val: {processed_data['german']['X_val'].shape}, Test: {processed_data['german']['X_test'].shape}")
+            print(f"  Class distribution - Train: {np.bincount(processed_data['german']['y_train'])}, Val: {np.bincount(processed_data['german']['y_val'])}, Test: {np.bincount(processed_data['german']['y_test'])}")
         
-        print("\n✅ All datasets processed successfully!")
-        return processed_datasets
+        # 处理Australian数据集
+        australian_data = self.load_australian_credit()
+        if australian_data is not None:
+            X, y, feature_names = australian_data
+            processed_data['australian'] = self.split_and_scale_data(X, y, feature_names)
+            print(f"🔧 Processing australian dataset...")
+            print(f"australian dataset split:")
+            print(f"  Train: {processed_data['australian']['X_train'].shape}, Val: {processed_data['australian']['X_val'].shape}, Test: {processed_data['australian']['X_test'].shape}")
+            print(f"  Class distribution - Train: {np.bincount(processed_data['australian']['y_train'])}, Val: {np.bincount(processed_data['australian']['y_val'])}, Test: {np.bincount(processed_data['australian']['y_test'])}")
+        
+        # 处理UCI数据集
+        uci_data = self.load_uci_credit()
+        if uci_data is not None:
+            X, y, feature_names = uci_data
+            processed_data['uci'] = self.split_and_scale_data(X, y, feature_names)
+            print(f"🔧 Processing uci dataset...")
+            print(f"uci dataset split:")
+            print(f"  Train: {processed_data['uci']['X_train'].shape}, Val: {processed_data['uci']['X_val'].shape}, Test: {processed_data['uci']['X_test'].shape}")
+            print(f"  Class distribution - Train: {np.bincount(processed_data['uci']['y_train'])}, Val: {np.bincount(processed_data['uci']['y_val'])}, Test: {np.bincount(processed_data['uci']['y_test'])}")
+        
+        print("✅ All datasets processed successfully!")
+        return processed_data
+
+if __name__ == "__main__":
+    # 测试数据预处理
+    preprocessor = DataPreprocessor()
+    processed_data = preprocessor.process_all_datasets()
+    
+    for dataset_name, data in processed_data.items():
+        print(f"\n{dataset_name.upper()} Dataset Summary:")
+        print(f"  Features: {len(data['feature_names'])}")
+        print(f"  Train samples: {data['X_train'].shape[0]}")
+        print(f"  Validation samples: {data['X_val'].shape[0]}")
+        print(f"  Test samples: {data['X_test'].shape[0]}")
+        print(f"  Class distribution (train): {np.bincount(data['y_train'])}")

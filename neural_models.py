@@ -1,217 +1,314 @@
+"""
+神经网络模型模块 - 更新版
+Neural Network Models Module - Updated Version
+使用PyTorch实现的信用评分神经网络
+"""
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from pytorch_tabnet.tab_model import TabNetClassifier
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import pandas as pd
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
+import time
+import warnings
+warnings.filterwarnings('ignore')
 
-# -------------------------
-# 高精度深度MLP教师模型（UCI/Australian）
-# 参考Kaggle竞赛和学术论文的最佳实践
-# -------------------------
-class DeepMLPTeacher(nn.Module):
-    """
-    高精度深度MLP教师模型，专为表格数据优化。
-    架构参考Home Credit Default Risk和Give Me Some Credit竞赛获奖方案。
-    使用更深层网络、残差连接、先进正则化技术。
-    """
-    def __init__(self, input_dim, hidden_dims=[256, 128, 64, 32], dropout_rate=0.3):
-        super().__init__()
-        
-        layers = []
-        prev_dim = input_dim
-        
-        # 构建深层网络
-        for i, hidden_dim in enumerate(hidden_dims):
-            # 主干层
-            layers.extend([
-                nn.Linear(prev_dim, hidden_dim),
-                nn.BatchNorm1d(hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.Dropout(dropout_rate)
-            ])
-            prev_dim = hidden_dim
-        
-        # 输出层
-        layers.extend([
-            nn.Linear(prev_dim, 16),
-            nn.BatchNorm1d(16),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout_rate * 0.5),
-            nn.Linear(16, 1),
-            nn.Sigmoid()
-        ])
-        
-        self.main_path = nn.Sequential(*layers)
-        
-        # 残差连接（如果输入维度合适）
-        self.use_residual = input_dim <= hidden_dims[0]
-        if self.use_residual:
-            self.residual_proj = nn.Linear(input_dim, 1)
-        
-        # 权重初始化
-        self._initialize_weights()
+# 设置随机种子以确保结果可重现
+torch.manual_seed(42)
+np.random.seed(42)
+
+# 设备配置
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+class CreditNet(nn.Module):
+    """信用评分神经网络模型"""
     
-    def _initialize_weights(self):
-        """Xavier/He初始化"""
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+    def __init__(self, input_dim, dataset_type='german'):
+        super(CreditNet, self).__init__()
+        
+        # 根据不同数据集调整网络结构
+        if dataset_type == 'german':
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(64, 32),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(32, 16),
+                nn.ReLU(),
+                nn.Linear(16, 1),
+                nn.Sigmoid()
+            )
+        elif dataset_type == 'australian':
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 128),
+                nn.ReLU(),
+                nn.Dropout(0.4),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(64, 32),
+                nn.ReLU(),
+                nn.Linear(32, 1),
+                nn.Sigmoid()
+            )
+        elif dataset_type == 'uci':
+            self.layers = nn.Sequential(
+                nn.Linear(input_dim, 256),
+                nn.ReLU(),
+                nn.BatchNorm1d(256),
+                nn.Dropout(0.5),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.BatchNorm1d(128),
+                nn.Dropout(0.4),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.BatchNorm1d(64),
+                nn.Dropout(0.3),
+                nn.Linear(64, 32),
+                nn.ReLU(),
+                nn.Linear(32, 1),
+                nn.Sigmoid()
+            )
     
     def forward(self, x):
-        main_out = self.main_path(x)
-        
-        if self.use_residual:
-            residual_out = torch.sigmoid(self.residual_proj(x))
-            return 0.9 * main_out + 0.1 * residual_out
-        
-        return main_out
+        return self.layers(x)
 
-# -------------------------
-# TabNet教师模型（German）- 优化版
-# -------------------------
-class OptimizedTabNetTeacher:
-    """
-    优化的TabNet教师模型，参数基于实际竞赛经验调优。
-    专门针对German信用数据的特征特性优化。
-    """
-    def __init__(self, input_dim, cat_idxs=[], cat_dims=[], seed=42):
-        # 根据实际竞赛经验优化的参数
-        self.model = TabNetClassifier(
-            input_dim=input_dim,
-            output_dim=2,
-            cat_idxs=cat_idxs,
-            cat_dims=cat_dims,
-            cat_emb_dim=2,  # 增加嵌入维度
-            n_d=64,         # 增加决策维度
-            n_a=64,         # 增加注意力维度
-            n_steps=7,      # 增加步数提高表达能力
-            gamma=1.3,      # 调整松弛参数
-            n_independent=3, # 增加独立GLU数量
-            n_shared=3,     # 增加共享GLU数量
-            lambda_sparse=1e-3,  # 稀疏正则化
-            momentum=0.02,  # 批标准化动量
-            seed=seed,
-            verbose=0
-        )
-
-    def fit(self, X_train, y_train, X_valid=None, y_valid=None, 
-            max_epochs=200, patience=20, batch_size=1024):
+class NeuralNetworkTrainer:
+    """神经网络训练器"""
+    
+    def __init__(self, device=None):
+        self.device = device if device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+    def train_model(self, model, train_loader, val_loader, criterion, optimizer, num_epochs=100, patience=10):
         """训练模型"""
-        eval_set = [(X_valid, y_valid)] if X_valid is not None else None
-        
-        self.model.fit(
-            X_train=X_train, 
-            y_train=y_train,
-            eval_set=eval_set,
-            max_epochs=max_epochs,
-            patience=patience,
-            batch_size=batch_size,
-            virtual_batch_size=256,
-            num_workers=0,
-            drop_last=False,
-            eval_metric=['auc', 'logloss']
-        )
-
-    def predict_proba(self, X):
-        return self.model.predict_proba(X)
-
-    def predict(self, X):
-        return self.model.predict(X)
-
-# -------------------------
-# 工厂方法
-# -------------------------
-def create_teacher_model(dataset_name, input_dim, **kwargs):
-    """
-    根据数据集名称创建对应的高精度教师模型。
-    所有模型均基于竞赛获奖方案和学术最佳实践。
-    """
-    if dataset_name.lower() in ["uci", "australian"]:
-        # 对于UCI和Australian使用深度MLP
-        return DeepMLPTeacher(input_dim, **kwargs)
-    elif dataset_name.lower() == "german":
-        # 对于German使用优化TabNet
-        return OptimizedTabNetTeacher(input_dim, **kwargs)
-    else:
-        raise ValueError(f"不支持的数据集: {dataset_name}")
-
-# -------------------------
-# 训练器类
-# -------------------------
-class TeacherModelTrainer:
-    """教师模型训练器，统一管理所有模型的训练流程"""
-    
-    def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
-        self.device = device
-    
-    def train_model(self, model, X_train, y_train, X_valid=None, y_valid=None, 
-                   dataset_name='', epochs=100):
-        """统一的模型训练接口"""
-        
-        if isinstance(model, DeepMLPTeacher):
-            return self._train_pytorch_model(model, X_train, y_train, X_valid, y_valid, epochs)
-        elif isinstance(model, OptimizedTabNetTeacher):
-            return self._train_tabnet_model(model, X_train, y_train, X_valid, y_valid, epochs)
-        else:
-            raise ValueError(f"不支持的模型类型: {type(model)}")
-    
-    def _train_pytorch_model(self, model, X_train, y_train, X_valid, y_valid, epochs):
-        """训练PyTorch模型"""
-        model = model.to(self.device)
-        model.train()
-        
-        # 转换数据
-        X_train_tensor = torch.FloatTensor(X_train).to(self.device)
-        y_train_tensor = torch.FloatTensor(y_train.reshape(-1, 1)).to(self.device)
-        
-        if X_valid is not None:
-            X_valid_tensor = torch.FloatTensor(X_valid).to(self.device)
-            y_valid_tensor = torch.FloatTensor(y_valid.reshape(-1, 1)).to(self.device)
-        
-        # 优化器和损失函数
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=10, verbose=False
-        )
-        criterion = nn.BCELoss()
-        
-        best_val_loss = float('inf')
+        best_acc = 0.0
         patience_counter = 0
+        train_losses = []
+        val_accuracies = []
         
-        for epoch in range(epochs):
-            # 训练
+        for epoch in range(num_epochs):
             model.train()
-            optimizer.zero_grad()
-            outputs = model(X_train_tensor)
-            loss = criterion(outputs, y_train_tensor)
-            loss.backward()
-            optimizer.step()
+            running_loss = 0.0
+            
+            for inputs, labels in train_loader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                
+                # 前向传播
+                outputs = model(inputs)
+                loss = criterion(outputs, labels.unsqueeze(1).float())
+                
+                # 反向传播和优化
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
+                running_loss += loss.item() * inputs.size(0)
             
             # 验证
-            if X_valid is not None:
-                model.eval()
-                with torch.no_grad():
-                    val_outputs = model(X_valid_tensor)
-                    val_loss = criterion(val_outputs, y_valid_tensor)
-                
-                scheduler.step(val_loss)
-                
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= 20:
-                        break
+            model.eval()
+            val_preds = []
+            val_labels = []
+            
+            with torch.no_grad():
+                for inputs, labels in val_loader:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    outputs = model(inputs)
+                    preds = (outputs > 0.5).float()
+                    val_preds.extend(preds.cpu().numpy())
+                    val_labels.extend(labels.cpu().numpy())
+            
+            epoch_loss = running_loss / len(train_loader.dataset)
+            val_acc = accuracy_score(val_labels, val_preds)
+            
+            train_losses.append(epoch_loss)
+            val_accuracies.append(val_acc)
+            
+            # 早停机制
+            if val_acc > best_acc:
+                best_acc = val_acc
+                patience_counter = 0
+                # 保存最佳模型状态
+                best_model_state = model.state_dict().copy()
+            else:
+                patience_counter += 1
+            
+            if patience_counter >= patience:
+                print(f'     Early stopping at epoch {epoch+1}')
+                break
+            
+            if (epoch + 1) % 20 == 0:
+                print(f'     Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Val Acc: {val_acc:.4f}')
         
-        return model
+        # 恢复最佳模型状态
+        model.load_state_dict(best_model_state)
+        return model, train_losses, val_accuracies, best_acc
     
-    def _train_tabnet_model(self, model, X_train, y_train, X_valid, y_valid, epochs):
-        """训练TabNet模型"""
-        model.fit(X_train, y_train, X_valid, y_valid, max_epochs=epochs)
-        return model
+    def test_model(self, model, test_loader):
+        """测试模型"""
+        model.eval()
+        test_preds = []
+        test_labels = []
+        test_probs = []
+        
+        with torch.no_grad():
+            for inputs, labels in test_loader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = model(inputs)
+                preds = (outputs > 0.5).float()
+                test_preds.extend(preds.cpu().numpy())
+                test_labels.extend(labels.cpu().numpy())
+                test_probs.extend(outputs.cpu().numpy())
+        
+        # 计算评估指标
+        accuracy = accuracy_score(test_labels, test_preds)
+        precision = precision_score(test_labels, test_preds, average='weighted', zero_division=0)
+        recall = recall_score(test_labels, test_preds, average='weighted', zero_division=0)
+        f1 = f1_score(test_labels, test_preds, average='weighted', zero_division=0)
+        
+        return {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+            'predictions': test_preds,
+            'probabilities': test_probs,
+            'true_labels': test_labels
+        }
+    
+    def create_data_loaders(self, data_dict, batch_size=32):
+        """创建数据加载器"""
+        # 转换为PyTorch张量
+        X_train_tensor = torch.FloatTensor(data_dict['X_train'])
+        y_train_tensor = torch.LongTensor(data_dict['y_train'])
+        X_val_tensor = torch.FloatTensor(data_dict['X_val'])
+        y_val_tensor = torch.LongTensor(data_dict['y_val'])
+        X_test_tensor = torch.FloatTensor(data_dict['X_test'])
+        y_test_tensor = torch.LongTensor(data_dict['y_test'])
+        
+        # 创建数据加载器
+        train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        
+        val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        
+        test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        
+        return train_loader, val_loader, test_loader
+
+def create_teacher_model(dataset_name, processed_data):
+    """创建并训练教师模型"""
+    print(f"   📚 Training {dataset_name.upper()} teacher model...")
+    
+    # 获取数据
+    data_dict = processed_data[dataset_name]
+    input_dim = data_dict['X_train'].shape[1]
+    
+    # 创建训练器
+    trainer = NeuralNetworkTrainer(device)
+    
+    # 创建数据加载器
+    if dataset_name == 'uci':
+        batch_size = 64
+        learning_rate = 0.0005
+        num_epochs = 200
+        patience = 20
+    elif dataset_name == 'australian':
+        batch_size = 32
+        learning_rate = 0.001
+        num_epochs = 150
+        patience = 15
+    else:  # german
+        batch_size = 32
+        learning_rate = 0.001
+        num_epochs = 100
+        patience = 10
+    
+    train_loader, val_loader, test_loader = trainer.create_data_loaders(data_dict, batch_size)
+    
+    # 创建模型
+    model = CreditNet(input_dim, dataset_name).to(device)
+    
+    # 定义损失函数和优化器
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    
+    # 训练模型
+    start_time = time.time()
+    trained_model, train_losses, val_accuracies, best_val_acc = trainer.train_model(
+        model, train_loader, val_loader, criterion, optimizer, num_epochs, patience
+    )
+    training_time = time.time() - start_time
+    
+    # 测试模型
+    test_results = trainer.test_model(trained_model, test_loader)
+    
+    # 计算模型大小
+    model_size = sum(p.numel() * p.element_size() for p in trained_model.parameters()) / 1024  # KB
+    
+    print(f"     ✅ {dataset_name.upper()}: PyTorch Neural Network - Accuracy: {test_results['accuracy']:.4f}, F1: {test_results['f1']:.4f}")
+    
+    return {
+        'model': trained_model,
+        'model_type': 'PyTorch Neural Network',
+        'accuracy': test_results['accuracy'],
+        'precision': test_results['precision'],
+        'recall': test_results['recall'],
+        'f1': test_results['f1'],
+        'predictions': test_results['predictions'],
+        'probabilities': test_results['probabilities'],
+        'true_labels': test_results['true_labels'],
+        'training_time': training_time,
+        'model_size': model_size,
+        'best_val_accuracy': best_val_acc,
+        'train_losses': train_losses,
+        'val_accuracies': val_accuracies,
+        'feature_names': data_dict['feature_names']
+    }
+
+def train_all_teacher_models(processed_data):
+    """训练所有教师模型"""
+    print("🧠 Phase 2: Teacher Model Training")
+    print("   Training neural network teacher models...")
+    print(f"   🔧 Using device: {device}")
+    
+    teacher_models = {}
+    
+    for dataset_name in ['uci', 'german', 'australian']:
+        if dataset_name in processed_data:
+            teacher_models[dataset_name] = create_teacher_model(dataset_name, processed_data)
+        else:
+            print(f"   ⚠️ {dataset_name.upper()} dataset not found in processed data")
+    
+    print("   ✅ Teacher model training completed")
+    for dataset_name, model_info in teacher_models.items():
+        print(f"     • {dataset_name.upper()}: {model_info['model_type']} - Accuracy: {model_info['accuracy']:.4f}")
+    
+    return teacher_models
+
+if __name__ == "__main__":
+    # 测试神经网络训练
+    from data_preprocessing import DataPreprocessor
+    
+    print("Testing neural network training...")
+    
+    # 加载和预处理数据
+    preprocessor = DataPreprocessor()
+    processed_data = preprocessor.process_all_datasets()
+    
+    # 训练教师模型
+    teacher_models = train_all_teacher_models(processed_data)
+    
+    print("\nTraining completed!")
+    for dataset_name, model_info in teacher_models.items():
+        print(f"{dataset_name.upper()} Dataset Results:")
+        print(f"  Accuracy: {model_info['accuracy']:.4f}")
+        print(f"  F1 Score: {model_info['f1']:.4f}")
+        print(f"  Training Time: {model_info['training_time']:.2f}s")
+        print(f"  Model Size: {model_info['model_size']:.2f}KB")

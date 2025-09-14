@@ -30,10 +30,11 @@ os.environ['TMP'] = temp_dir
 
 # 导入自定义模块
 from data_preprocessing import DataPreprocessor
-from neural_models import TeacherModelTrainer
+from neural_models import train_all_teacher_models
 from shap_analysis import SHAPAnalyzer
 from distillation_module import KnowledgeDistillator
 from experiment_manager import ExperimentManager
+from simplified_reporter import SimplifiedReporter
 from tree_rules_analyzer import DecisionTreeRulesAnalyzer
 
 warnings.filterwarnings('ignore')
@@ -48,9 +49,10 @@ def main():
     print("="*80)
     print("📊 实验参数配置:")
     print("   • Top-k特征: k=5,6,7,8")
+    print("   • 加权比例参数: α=0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0") 
     print("   • 温度参数: T=1,2,3,4,5") 
-    print("   • 混合权重: α=0.0,0.2,0.4,0.6,0.8,1.0")
     print("   • 决策树深度: D=4,5,6,7,8")
+    print("   • 基线模型: 固定参数（max_depth=5），无参数优化")
     print("   • 决策树学生模型知识蒸馏")
     print("="*80)
     
@@ -74,16 +76,7 @@ def main():
         # ========================
         # 2. 教师模型训练阶段
         # ========================
-        print(f"\n🧠 Phase 2: Teacher Model Training")
-        print(f"   Training neural network teacher models...")
-        
-        trainer = TeacherModelTrainer()
-        teacher_models = trainer.train_all_teacher_models(processed_data)
-        
-        print(f"   ✅ Teacher model training completed")
-        for dataset_name, model_info in teacher_models.items():
-            accuracy = model_info['test_metrics']['accuracy']
-            print(f"     • {dataset_name.upper()}: {model_info['model_type']} - Accuracy: {accuracy:.4f}")
+        teacher_models = train_all_teacher_models(processed_data)
         
         # ========================
         # 3. SHAP特征重要性分析
@@ -134,8 +127,8 @@ def main():
         
         all_feature_distillation_results = distillator.run_all_feature_distillation(
             dataset_names=['uci', 'german', 'australian'],
-            temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5  
-            alpha_range=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # Alpha: 0.1-0.9 (步长0.1)
+            temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5 (间隔1)
+            alpha_range=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],  # Alpha: 0.0-1.0 (间隔0.1)
             max_depth_range=[4, 5, 6, 7, 8]  # Depth: 4-8
         )
         
@@ -151,8 +144,8 @@ def main():
         top_k_distillation_results = distillator.run_comprehensive_distillation(
             dataset_names=['uci', 'german', 'australian'],
             k_range=(5, 8),            # k: 5-8
-            temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5  
-            alpha_range=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # Alpha: 0.1-0.9 (步长0.1)
+            temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5 (间隔1)
+            alpha_range=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],  # Alpha: 0.0-1.0 (间隔0.1)
             max_depth_range=[4, 5, 6, 7, 8]        # Depth: 4-8
         )
         
@@ -202,6 +195,21 @@ def main():
         summary_path = experiment_manager.generate_experiment_summary(
             teacher_models, all_shap_results, top_k_distillation_results, master_df
         )
+        
+        # 生成简化Excel报告
+        print(f"\n📊 Generating Simplified Excel Report...")
+        simplified_reporter = SimplifiedReporter()
+        
+        # 准备结果数据结构
+        all_results = {
+            'teacher_models': teacher_models,
+            'baseline_models': baseline_results,
+            'distillation_results': all_feature_distillation_results,
+            'top_k_results': top_k_distillation_results
+        }
+        
+        # 生成简化报告
+        simplified_excel_path = simplified_reporter.generate_simplified_excel_report(all_results)
         
         print(f"\n🎉 System Execution Completed Successfully!")
         print(f"   📁 All results saved to: ./results/")

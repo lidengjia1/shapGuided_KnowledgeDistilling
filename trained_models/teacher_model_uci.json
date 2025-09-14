@@ -1,0 +1,11 @@
+{
+  "dataset": "uci",
+  "model_type": "Enhanced Neural Network",
+  "accuracy": 0.8181666666666667,
+  "precision": 0.8006226578050755,
+  "recall": 0.8181666666666667,
+  "f1": 0.7944346618070104,
+  "auc": 0,
+  "training_time": 27.167646169662476,
+  "saved_at": "2025-09-14 23:47:50"
+}

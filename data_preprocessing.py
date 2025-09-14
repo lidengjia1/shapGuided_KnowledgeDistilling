@@ -285,8 +285,13 @@ class DataPreprocessor:
         # 处理German数据集
         german_data = self.load_german_credit()
         if german_data is not None:
-            X, y, feature_names = german_data
-            processed_data['german'] = self.split_and_scale_data(X, y, feature_names)
+            X_train, X_val, X_test, y_train, y_val, y_test = german_data
+            processed_data['german'] = {
+                'X_train': X_train, 'X_val': X_val, 'X_test': X_test,
+                'y_train': y_train, 'y_val': y_val, 'y_test': y_test,
+                'feature_names': self.feature_names['german'],
+                'scaler': self.scalers['german']
+            }
             print(f"🔧 Processing german dataset...")
             print(f"german dataset split:")
             print(f"  Train: {processed_data['german']['X_train'].shape}, Val: {processed_data['german']['X_val'].shape}, Test: {processed_data['german']['X_test'].shape}")
@@ -295,8 +300,13 @@ class DataPreprocessor:
         # 处理Australian数据集
         australian_data = self.load_australian_credit()
         if australian_data is not None:
-            X, y, feature_names = australian_data
-            processed_data['australian'] = self.split_and_scale_data(X, y, feature_names)
+            X_train, X_val, X_test, y_train, y_val, y_test = australian_data
+            processed_data['australian'] = {
+                'X_train': X_train, 'X_val': X_val, 'X_test': X_test,
+                'y_train': y_train, 'y_val': y_val, 'y_test': y_test,
+                'feature_names': self.feature_names['australian'],
+                'scaler': self.scalers['australian']
+            }
             print(f"🔧 Processing australian dataset...")
             print(f"australian dataset split:")
             print(f"  Train: {processed_data['australian']['X_train'].shape}, Val: {processed_data['australian']['X_val'].shape}, Test: {processed_data['australian']['X_test'].shape}")
@@ -305,8 +315,13 @@ class DataPreprocessor:
         # 处理UCI数据集
         uci_data = self.load_uci_credit()
         if uci_data is not None:
-            X, y, feature_names = uci_data
-            processed_data['uci'] = self.split_and_scale_data(X, y, feature_names)
+            X_train, X_val, X_test, y_train, y_val, y_test = uci_data
+            processed_data['uci'] = {
+                'X_train': X_train, 'X_val': X_val, 'X_test': X_test,
+                'y_train': y_train, 'y_val': y_val, 'y_test': y_test,
+                'feature_names': self.feature_names['uci'],
+                'scaler': self.scalers['uci']
+            }
             print(f"🔧 Processing uci dataset...")
             print(f"uci dataset split:")
             print(f"  Train: {processed_data['uci']['X_train'].shape}, Val: {processed_data['uci']['X_val'].shape}, Test: {processed_data['uci']['X_test'].shape}")

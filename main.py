@@ -33,9 +33,8 @@ from data_preprocessing import DataPreprocessor
 from neural_models import train_all_teacher_models
 from shap_analysis import SHAPAnalyzer
 from distillation_module import KnowledgeDistillator
-from experiment_manager import ExperimentManager
-from simplified_reporter import SimplifiedReporter
-from tree_rules_analyzer import DecisionTreeRulesAnalyzer
+from result_manager import ResultManager
+from teacher_model_saver import TeacherModelSaver
 
 warnings.filterwarnings('ignore')
 
@@ -77,6 +76,10 @@ def main():
         # 2. 教师模型训练阶段
         # ========================
         teacher_models = train_all_teacher_models(processed_data)
+        
+        # 保存教师模型到trained_models文件夹
+        model_saver = TeacherModelSaver()
+        model_saver.save_teacher_models(teacher_models)
         
         # ========================
         # 3. SHAP特征重要性分析
@@ -123,7 +126,7 @@ def main():
         # 5. 全特征知识蒸馏实验
         # ========================
         print(f"\n🌟 Phase 5: All-Feature Knowledge Distillation")
-        print(f"   Running all-feature distillation experiments without Optuna...")
+        print(f"   Running all-feature distillation with grid search...")
         
         all_feature_distillation_results = distillator.run_all_feature_distillation(
             dataset_names=['uci', 'german', 'australian'],
@@ -138,7 +141,7 @@ def main():
         # 6. Top-k知识蒸馏实验
         # ========================
         print(f"\n🧪 Phase 6: Top-k Knowledge Distillation Experiments")
-        print(f"   Running comprehensive distillation experiments without Optuna...")
+        print(f"   Running comprehensive distillation with parameter optimization...")
         
         # Top-k特征蒸馏实验
         top_k_distillation_results = distillator.run_comprehensive_distillation(
@@ -155,95 +158,41 @@ def main():
         # 7. 结果汇总和导出
         # ========================
         print(f"\n📊 Phase 7: Results Analysis and Export")
-        print(f"   Generating comprehensive results and visualizations...")
+        print(f"   Generating simplified results...")
         
-        experiment_manager = ExperimentManager()
+        result_manager = ResultManager()
         
-        # 创建综合对比表格 - 四种模型的性能对比
-        comparison_excel_path, comparison_df = experiment_manager.create_comprehensive_comparison_table(
+        # 1. 生成四个模型的性能对比表格
+        comparison_excel_path = result_manager.generate_model_comparison_table(
             teacher_models, baseline_results, all_feature_distillation_results, top_k_distillation_results
         )
         
-        # 创建主要结果表格 - 详细的实验记录
-        master_excel_path, master_df = experiment_manager.create_master_results_table(
-            teacher_models, baseline_results, all_feature_distillation_results, top_k_distillation_results
-        )
+        # 2. 生成SHAP特征重要性排序图
+        shap_viz_path = result_manager.generate_shap_visualization(all_shap_results)
         
-        # 保存所有模型和数据
-        saved_paths = experiment_manager.save_models_and_data(
-            teacher_models, processed_data, all_shap_results, top_k_distillation_results
-        )
+        # 3. 提取最优Top-k规则
+        rules_path = result_manager.extract_best_topk_rules(top_k_distillation_results, processed_data)
         
-        # 创建性能可视化
-        viz_path = experiment_manager.create_performance_visualization(master_df)
-        
-        # 创建Top-K参数分析图 (2×2布局)
-        topk_param_viz_path = experiment_manager.create_topk_parameter_analysis(top_k_distillation_results)
-        
-        # 提取最优蒸馏树的决策规则
-        rules_extractor = DecisionTreeRulesAnalyzer()
-        rules_excel_path, best_trees_info = rules_extractor.extract_best_distillation_tree_rules(
-            top_k_distillation_results, processed_data
-        )
-        
-        # 生成决策树文本表示
-        tree_text_representations = rules_extractor.generate_tree_text_representation(
-            best_trees_info, processed_data
-        )
-        
-        # 生成实验总结 - 使用主要结果
-        summary_path = experiment_manager.generate_experiment_summary(
-            teacher_models, all_shap_results, top_k_distillation_results, master_df
-        )
-        
-        # 生成简化Excel报告
-        print(f"\n📊 Generating Simplified Excel Report...")
-        simplified_reporter = SimplifiedReporter()
-        
-        # 准备结果数据结构
-        all_results = {
-            'teacher_models': teacher_models,
-            'baseline_models': baseline_results,
-            'distillation_results': all_feature_distillation_results,
-            'top_k_results': top_k_distillation_results
-        }
-        
-        # 生成简化报告
-        simplified_excel_path = simplified_reporter.generate_simplified_excel_report(all_results)
+        # 4. 清理不需要的文件
+        result_manager.clean_output_files()
         
         print(f"\n🎉 System Execution Completed Successfully!")
-        print(f"   📁 All results saved to: ./results/")
-        print(f"   📊 Model Comparison Excel: {comparison_excel_path}")
-        print(f"   📋 Master Excel report: {master_excel_path}")
-        print(f"   📈 Performance charts: {viz_path}")
-        print(f"   🌳 Decision tree rules: {rules_excel_path}")
-        print(f"   📄 Summary report: {summary_path}")
-        
-        # 显示四种模型对比摘要
-        print(f"\n📋 Model Comparison Summary:")
-        for dataset in ['UCI', 'GERMAN', 'AUSTRALIAN']:
-            dataset_results = comparison_df[comparison_df['Dataset'] == dataset]
-            print(f"\n   {dataset} Dataset:")
-            for _, row in dataset_results.iterrows():
-                print(f"     • {row['Model_Type']}: F1={row['F1_Score']}, Acc={row['Accuracy']}")
-        
-        # 显示最佳结果摘要
-        best_result = master_df.loc[master_df['Accuracy'].idxmax()]
-        print(f"\n🏆 Overall Best Model Performance:")
-        print(f"   • Dataset: {best_result['Dataset']}")
-        print(f"   • Model: {best_result['Model_Type']} - {best_result['Architecture']}")
-        print(f"   • Accuracy: {best_result['Accuracy']:.4f}")
-        print(f"   • Feature Selection: {best_result['Feature_Selection']}")
-        if best_result['Temperature'] != 'N/A':
-            print(f"   • Configuration: T={best_result['Temperature']}, α={best_result['Alpha']}")
+        print(f"   📁 核心结果文件已保存:")
+        print(f"   📊 模型性能对比表格: {comparison_excel_path}")
+        print(f"   � SHAP特征重要性图: {shap_viz_path}")
+        print(f"   🌳 最优Top-k决策规则: {rules_path}")
+        print(f"   � 训练好的模型文件: ./trained_models/")
         
         # 显示最优蒸馏树信息
-        print(f"\n🌳 Best Distillation Trees by Dataset:")
-        for dataset_name, tree_info in best_trees_info.items():
-            print(f"   • {dataset_name.upper()}:")
-            print(f"     - Configuration: k={tree_info['k']}, T={tree_info['temperature']}, α={tree_info['alpha']}, D={tree_info['max_depth']}")
-            print(f"     - Performance: Accuracy={tree_info['accuracy']:.4f}, F1={tree_info['f1']:.4f}")
-            print(f"     - Features: {len(tree_info['feature_names'])} selected")
+        print(f"\n🏆 最优配置总结:")
+        for dataset_name in ['uci', 'german', 'australian']:
+            if dataset_name in top_k_distillation_results:
+                best_config = result_manager._find_best_topk_config(top_k_distillation_results[dataset_name])
+                if best_config:
+                    print(f"   • {dataset_name.upper()}数据集:")
+                    print(f"     - 配置: k={best_config.get('k', 'N/A')}, T={best_config.get('temperature', 'N/A')}, "
+                          f"α={best_config.get('alpha', 'N/A')}, D={best_config.get('max_depth', 'N/A')}")
+                    print(f"     - 性能: Accuracy={best_config.get('accuracy', 0):.4f}, F1={best_config.get('f1', 0):.4f}")
         
     except Exception as e:
         print(f"\n❌ Error during system execution: {str(e)}")

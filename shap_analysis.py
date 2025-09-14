@@ -30,7 +30,7 @@ class SHAPAnalyzer:
         self.decision_tree_models = {}
         
     def train_decision_trees(self):
-        """为每个数据集训练决策树模型用于SHAP分析"""
+        """Train decision tree models for each dataset for SHAP analysis"""
         print("🌳 Training decision trees for SHAP analysis...")
         
         for dataset_name, data_dict in self.processed_data.items():
@@ -41,14 +41,14 @@ class SHAPAnalyzer:
             y_train = data_dict['y_train']
             y_test = data_dict['y_test']
             
-            # 使用Optuna优化决策树参数
+            # Use Optuna to optimize decision tree parameters
             def objective(trial):
-                # 定义超参数搜索空间
+                # Define hyperparameter search space
                 max_depth = trial.suggest_int('max_depth', 5, 25)
                 min_samples_split = trial.suggest_int('min_samples_split', 2, 20)
                 min_samples_leaf = trial.suggest_int('min_samples_leaf', 1, 10)
                 
-                # 创建决策树模型
+                # Create decision tree model
                 dt = DecisionTreeClassifier(
                     max_depth=max_depth,
                     min_samples_split=min_samples_split,
@@ -56,15 +56,15 @@ class SHAPAnalyzer:
                     random_state=42
                 )
                 
-                # 使用交叉验证评估模型
+                # Evaluate model using cross-validation
                 scores = cross_val_score(dt, X_train, y_train, cv=5, scoring='accuracy', n_jobs=1)
                 return scores.mean()
             
-            # 创建Optuna study并优化
+            # Create Optuna study and optimize
             study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
             study.optimize(objective, n_trials=50, show_progress_bar=False)
             
-            # 使用最佳参数训练最终模型
+            # Train final model with best parameters
             best_params = study.best_params
             best_model = DecisionTreeClassifier(
                 max_depth=best_params['max_depth'],
@@ -74,7 +74,7 @@ class SHAPAnalyzer:
             )
             best_model.fit(X_train, y_train)
             
-            # 计算测试集准确率
+            # Calculate test set accuracy
             y_pred = best_model.predict(X_test)
             accuracy = accuracy_score(y_test, y_pred)
             
@@ -92,14 +92,14 @@ class SHAPAnalyzer:
         print("✅ Decision trees trained for SHAP analysis")
         
     def compute_shap_values(self, dataset_name, top_k_range=(5, 8)):
-        """使用决策树模型计算SHAP值并选择重要特征
+        """Compute SHAP values using decision tree model
         
-        SHAP计算方法说明：
-        1. 使用训练好的决策树模型进行SHAP分析
-        2. 使用SHAP TreeExplainer专门针对树模型优化
-        3. 对全量数据样本(训练+测试)计算SHAP值以获得更准确的特征重要性
-        4. SHAP值表示每个特征对模型预测的贡献度
-        5. 通过平均绝对SHAP值计算特征重要性排序
+        SHAP computation methodology:
+        1. Use trained decision tree model for SHAP analysis
+        2. Use SHAP TreeExplainer optimized for tree models
+        3. Compute SHAP values on full dataset (train + test) for accurate feature importance
+        4. SHAP values represent each feature's contribution to model predictions
+        5. Calculate feature importance through mean absolute SHAP values
         """
         print(f"\n🔍 Computing SHAP values for {dataset_name.upper()} dataset...")
         print(f"   Method: TreeExplainer with decision tree model")
@@ -109,51 +109,51 @@ class SHAPAnalyzer:
         model = model_info['model']
         data_dict = self.processed_data[dataset_name]
         
-        # 准备数据 - 使用全量样本(训练+测试)
+        # Prepare data - use full samples (train + test)
         X_train = data_dict['X_train']
         X_test = data_dict['X_test']
         
-        # 合并训练和测试数据以获得更全面的SHAP分析
+        # Combine train and test data for comprehensive SHAP analysis
         import numpy as np
         X_all = np.vstack([X_train, X_test])
         
         print(f"   Data samples: {X_train.shape[0]} train + {X_test.shape[0]} test = {X_all.shape[0]} total")
         
-        # 创建SHAP TreeExplainer
+        # Create SHAP TreeExplainer
         explainer = shap.TreeExplainer(model)
         
-        # 计算SHAP值
+        # Compute SHAP values
         print(f"   Calculating SHAP values for {X_all.shape[0]} samples...")
         shap_values = explainer.shap_values(X_all)
         
-        # 处理不同格式的SHAP输出
+        # Handle different SHAP output formats
         if isinstance(shap_values, list):
-            # 二分类问题，通常取第二个类别（正类）
+            # Binary classification, usually take the second class (positive class)
             if len(shap_values) == 2:
                 shap_values = shap_values[1]
             else:
                 shap_values = shap_values[0]
         
-        # 计算特征重要性（平均绝对SHAP值）
+        # Calculate feature importance (mean absolute SHAP values)
         feature_importance = np.mean(np.abs(shap_values), axis=0)
         
-        # 确保feature_importance是一维数组并转换为float
+        # Ensure feature_importance is 1D array and convert to float
         if feature_importance.ndim > 1:
             feature_importance = feature_importance.flatten()
         feature_importance = feature_importance.astype(float)
         
-        # 创建特征重要性字典
+        # Create feature importance dictionary
         feature_names = data_dict['feature_names']
         importance_dict = dict(zip(feature_names, feature_importance))
         
-        # 按重要性排序
+        # Sort by importance
         sorted_features = sorted(importance_dict.items(), key=lambda x: float(x[1]), reverse=True)
         
         print(f"   Top 8 important features for {dataset_name}:")
         for i, (feature, importance) in enumerate(sorted_features[:8]):
             print(f"     {i+1}. {feature}: {float(importance):.4f}")
         
-        # 生成不同top-k的特征选择
+        # Generate different top-k feature selections
         top_k_features = {}
         for k in range(top_k_range[0], top_k_range[1] + 1):
             top_k_features[k] = [feat[0] for feat in sorted_features[:k]]
@@ -168,40 +168,236 @@ class SHAPAnalyzer:
         }
     
     def create_combined_shap_visualization(self, all_shap_results):
-        """创建三个数据集的SHAP对比可视化图表"""
+        """Create combined SHAP visualization for three datasets"""
         print(f"📊 Creating combined SHAP visualization...")
+        
+        # 设置英文字体和样式
+        plt.rcParams['font.family'] = 'Arial'
+        plt.rcParams['axes.unicode_minus'] = False
         
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         
-        datasets = ['german', 'uci', 'australian']
-        titles = ['German Credit Dataset', 'UCI Credit Dataset', 'Australian Credit Dataset']
+        # 按要求的顺序：German, Australian, UCI
+        datasets = ['german', 'australian', 'uci']
+        titles = ['German Credit Dataset', 'Australian Credit Dataset', 'UCI Credit Dataset']
         
         for idx, (dataset_name, title) in enumerate(zip(datasets, titles)):
             ax = axes[idx]
             shap_results = all_shap_results[dataset_name]
             
-            # 获取Top 8特征
+            # 获取Top 8特征 - 使用真实特征名
             top_features = shap_results['sorted_features'][:8]
             features, importances = zip(*top_features)
             importances = [float(x) for x in importances]
             
+            # 获取真实的原始特征名
+            real_feature_names = self._get_real_feature_names(dataset_name, features)
+            
             # 创建条形图
-            bars = ax.barh(range(len(features)), importances, color=f'C{idx}')
-            ax.set_yticks(range(len(features)))
-            ax.set_yticklabels(features, fontsize=8)
-            ax.set_xlabel('Mean |SHAP Value|', fontsize=10)
-            ax.set_title(title, fontsize=12, fontweight='bold')
+            bars = ax.barh(range(len(real_feature_names)), importances, 
+                          color=['#2E86AB', '#A23B72', '#F18F01'][idx], alpha=0.8)
+            ax.set_yticks(range(len(real_feature_names)))
+            ax.set_yticklabels(real_feature_names, fontsize=9)
+            ax.set_xlabel('Mean |SHAP Value|', fontsize=11)
+            ax.set_title(title, fontsize=13, fontweight='bold')
             ax.invert_yaxis()
             
             # 添加数值标签
             for i, (bar, imp) in enumerate(zip(bars, importances)):
-                ax.text(bar.get_width() + max(importances)*0.01, bar.get_y() + bar.get_height()/2, 
-                       f'{imp:.3f}', va='center', fontsize=7)
+                ax.text(bar.get_width() + max(importances)*0.01, 
+                       bar.get_y() + bar.get_height()/2, 
+                       f'{imp:.3f}', va='center', fontsize=8, fontweight='bold')
         
         plt.tight_layout()
-        plt.savefig('results/combined_shap_analysis.png', dpi=300, bbox_inches='tight')
+        plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        print(f"   ✅ Combined SHAP visualization saved to: results/combined_shap_analysis.png")
+        print(f"   ✅ SHAP feature importance visualization saved to: results/shap_feature_importance.png")
         
-        return 'results/combined_shap_analysis.png'
+        plt.tight_layout()
+        plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"   ✅ SHAP feature importance visualization saved to: results/shap_feature_importance.png")
+        
+        return 'results/shap_feature_importance.png'
+    
+    def _get_real_feature_names(self, dataset_name, encoded_features):
+        """Get real feature names from original datasets"""
+        real_names = []
+        
+        for feature in encoded_features:
+            if dataset_name == 'german':
+                # German dataset - map to meaningful English names
+                if 'Status_A12' in feature:
+                    real_names.append('Account Status (A12)')
+                elif 'Status_A13' in feature:
+                    real_names.append('Account Status (A13)')
+                elif 'Status_A14' in feature:
+                    real_names.append('Account Status (A14)')
+                elif 'Purpose_A410' in feature:
+                    real_names.append('Purpose (New Car)')
+                elif 'Purpose_A41' in feature:
+                    real_names.append('Purpose (Used Car)')
+                elif 'Purpose_A42' in feature:
+                    real_names.append('Purpose (Furniture)')
+                elif 'Purpose_A43' in feature:
+                    real_names.append('Purpose (Radio/TV)')
+                elif 'Duration' in feature:
+                    real_names.append('Credit Duration')
+                elif 'Credit_amount' in feature:
+                    real_names.append('Credit Amount')
+                elif 'Age' in feature:
+                    real_names.append('Age')
+                elif 'Savings_A61' in feature:
+                    real_names.append('Savings (<100 DM)')
+                elif 'Savings_A62' in feature:
+                    real_names.append('Savings (100-500 DM)')
+                elif 'Employment_A71' in feature:
+                    real_names.append('Employment (Unemployed)')
+                elif 'Employment_A72' in feature:
+                    real_names.append('Employment (<1 year)')
+                else:
+                    real_names.append(feature)
+                    
+            elif dataset_name == 'uci':
+                # UCI Taiwan dataset - map to meaningful English names
+                if feature == 'PAY_0':
+                    real_names.append('Payment Status (Sep)')
+                elif feature == 'PAY_2':
+                    real_names.append('Payment Status (Aug)')
+                elif feature == 'PAY_3':
+                    real_names.append('Payment Status (Jul)')
+                elif feature == 'PAY_4':
+                    real_names.append('Payment Status (Jun)')
+                elif feature == 'PAY_5':
+                    real_names.append('Payment Status (May)')
+                elif feature == 'PAY_6':
+                    real_names.append('Payment Status (Apr)')
+                elif feature == 'BILL_AMT1':
+                    real_names.append('Bill Amount (Sep)')
+                elif feature == 'BILL_AMT2':
+                    real_names.append('Bill Amount (Aug)')
+                elif feature == 'BILL_AMT3':
+                    real_names.append('Bill Amount (Jul)')
+                elif feature == 'BILL_AMT4':
+                    real_names.append('Bill Amount (Jun)')
+                elif feature == 'BILL_AMT5':
+                    real_names.append('Bill Amount (May)')
+                elif feature == 'BILL_AMT6':
+                    real_names.append('Bill Amount (Apr)')
+                elif feature == 'PAY_AMT1':
+                    real_names.append('Payment Amount (Sep)')
+                elif feature == 'PAY_AMT2':
+                    real_names.append('Payment Amount (Aug)')
+                elif feature == 'LIMIT_BAL':
+                    real_names.append('Credit Limit')
+                elif feature == 'SEX':
+                    real_names.append('Gender')
+                elif feature == 'EDUCATION':
+                    real_names.append('Education Level')
+                elif feature == 'MARRIAGE':
+                    real_names.append('Marital Status')
+                elif feature == 'AGE':
+                    real_names.append('Age')
+                else:
+                    real_names.append(feature)
+                    
+            elif dataset_name == 'australian':
+                # Australian dataset - features are anonymous, use generic names
+                if feature == 'feature_1':
+                    real_names.append('Feature 1 (Continuous)')
+                elif feature == 'feature_2':
+                    real_names.append('Feature 2 (Continuous)')
+                elif feature == 'feature_4':
+                    real_names.append('Feature 4 (Continuous)')
+                elif feature == 'feature_6':
+                    real_names.append('Feature 6 (Continuous)')
+                elif feature == 'feature_9':
+                    real_names.append('Feature 9 (Binary)')
+                elif feature == 'feature_12':
+                    real_names.append('Feature 12 (Binary)')
+                elif feature == 'feature_13':
+                    real_names.append('Feature 13 (Continuous)')
+                elif 'feature_0_1' in feature:
+                    real_names.append('Feature 0 (Category 1)')
+                elif 'feature_3_2' in feature:
+                    real_names.append('Feature 3 (Category 2)')
+                elif 'feature_3_3' in feature:
+                    real_names.append('Feature 3 (Category 3)')
+                elif 'feature_5_2' in feature:
+                    real_names.append('Feature 5 (Category 2)')
+                elif 'feature_5_3' in feature:
+                    real_names.append('Feature 5 (Category 3)')
+                elif 'feature_5_4' in feature:
+                    real_names.append('Feature 5 (Category 4)')
+                elif 'feature_5_5' in feature:
+                    real_names.append('Feature 5 (Category 5)')
+                else:
+                    real_names.append(feature.replace('feature_', 'Feature '))
+            else:
+                real_names.append(feature)
+        
+        return real_names
+    
+    def _get_original_feature_names(self, dataset_name, encoded_features):
+        """Convert encoded feature names back to original names when possible"""
+        original_names = []
+        
+        for feature in encoded_features:
+            if dataset_name == 'german':
+                # German dataset original feature mappings - 保持具体特征名以避免重复
+                if 'Status_A1' in feature:
+                    original_names.append(f'Account Status ({feature})')
+                elif 'Duration' in feature:
+                    original_names.append('Duration')
+                elif 'Credit_amount' in feature:
+                    original_names.append('Credit Amount')
+                elif 'Purpose_A4' in feature:
+                    # 保持具体的Purpose编码以避免重复
+                    purpose_code = feature.replace('Purpose_', '')
+                    original_names.append(f'Purpose ({purpose_code})')
+                elif 'Age' in feature:
+                    original_names.append('Age')
+                elif 'Savings_A6' in feature:
+                    original_names.append(f'Savings ({feature})')
+                elif 'Employment_A7' in feature:
+                    original_names.append(f'Employment ({feature})')
+                elif 'Property_A12' in feature:
+                    original_names.append(f'Property ({feature})')
+                else:
+                    original_names.append(feature)
+            elif dataset_name == 'uci':
+                # UCI Taiwan dataset original feature mappings - 保持具体性
+                if 'PAY_' in feature:
+                    pay_month = feature.split('_')[1] if '_' in feature else '?'
+                    original_names.append(f'Payment Status M{pay_month}')
+                elif 'BILL_AMT' in feature:
+                    bill_month = feature.split('T')[1] if 'T' in feature else '?'
+                    original_names.append(f'Bill Amount M{bill_month}')
+                elif 'PAY_AMT' in feature:
+                    pay_month = feature.split('T')[1] if 'T' in feature else '?'
+                    original_names.append(f'Payment Amount M{pay_month}')
+                elif 'LIMIT_BAL' in feature:
+                    original_names.append('Credit Limit')
+                elif 'SEX' in feature:
+                    original_names.append('Gender')
+                elif 'EDUCATION' in feature:
+                    original_names.append('Education')
+                elif 'MARRIAGE' in feature:
+                    original_names.append('Marriage')
+                elif 'AGE' in feature:
+                    original_names.append('Age')
+                else:
+                    original_names.append(feature)
+            elif dataset_name == 'australian':
+                # Australian dataset - features are anonymous, use complete feature names
+                if 'feature_' in feature:
+                    # 保持完整的特征名，避免重复
+                    original_names.append(f'Feature {feature.replace("feature_", "")}')
+                else:
+                    original_names.append(feature)
+            else:
+                original_names.append(feature)
+        
+        return original_names

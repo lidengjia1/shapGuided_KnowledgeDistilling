@@ -1,0 +1,11 @@
+{
+  "dataset": "german",
+  "model_type": "Enhanced Neural Network",
+  "accuracy": 0.63,
+  "precision": 0.6405698778833107,
+  "recall": 0.63,
+  "f1": 0.6347584289190129,
+  "auc": 0,
+  "training_time": 1.4553697109222412,
+  "saved_at": "2025-09-14 23:47:50"
+}

@@ -225,10 +225,7 @@ class KnowledgeDistillator:
     
     def _extract_decision_rules(self, model, feature_names):
         """提取决策树规则"""
-        from tree_rules_analyzer import DecisionTreeRulesAnalyzer
-        
-        extractor = DecisionTreeRulesAnalyzer()
-        # 使用简单的规则提取方法
+        # 简化规则提取，不依赖外部模块
         rules = self._simple_extract_rules(model, feature_names)
         
         return {
@@ -243,7 +240,6 @@ class KnowledgeDistillator:
         rules = []
         
         def recurse(node, depth, parent_rule=""):
-            indent = "  " * depth
             if tree.feature[node] != _tree.TREE_UNDEFINED:
                 name = feature_names[tree.feature[node]]
                 threshold = tree.threshold[node]
@@ -261,11 +257,10 @@ class KnowledgeDistillator:
                     rules.append(f"IF {rule} THEN class={predicted_class} (confidence={confidence:.3f})")
         
         try:
-            from sklearn.tree import _tree
             recurse(0, 0)
-        except:
+        except Exception as e:
             # 如果规则提取失败，返回简单描述
-            rules = [f"Decision tree with {model.tree_.node_count} nodes"]
+            rules = [f"Decision tree with {tree.node_count} nodes"]
         
         return rules
     

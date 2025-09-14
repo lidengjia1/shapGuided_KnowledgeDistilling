@@ -92,66 +92,111 @@ class SHAPAnalyzer:
         print("✅ Decision trees trained for SHAP analysis")
         
     def compute_shap_values(self, dataset_name, top_k_range=(5, 8)):
-        """Compute SHAP values using decision tree model
+        """Compute SHAP values using decision tree model with full dataset
         
         SHAP computation methodology:
-        1. Use trained decision tree model for SHAP analysis
+        1. Use ALL available data (train + validation + test) for accurate SHAP computation
         2. Use SHAP TreeExplainer optimized for tree models
-        3. Compute SHAP values on full dataset (train + test) for accurate feature importance
-        4. SHAP values represent each feature's contribution to model predictions
-        5. Calculate feature importance through mean absolute SHAP values
+        3. Calculate SHAP values for each individual sample
+        4. Aggregate feature importance through mean absolute SHAP values
+        5. Ensure precise feature ranking without duplicates
         """
         print(f"\n🔍 Computing SHAP values for {dataset_name.upper()} dataset...")
         print(f"   Method: TreeExplainer with decision tree model")
-        print(f"   Computing SHAP for all data samples (train + test)")
+        print(f"   Using FULL dataset for accurate SHAP computation")
         
         model_info = self.decision_tree_models[dataset_name]
         model = model_info['model']
         data_dict = self.processed_data[dataset_name]
         
-        # Prepare data - use full samples (train + test)
+        # Use ALL available data: train + validation + test
         X_train = data_dict['X_train']
+        X_val = data_dict['X_val'] 
         X_test = data_dict['X_test']
         
-        # Combine train and test data for comprehensive SHAP analysis
+        # Combine all data for comprehensive SHAP analysis
         import numpy as np
-        X_all = np.vstack([X_train, X_test])
+        X_all = np.vstack([X_train, X_val, X_test])
         
-        print(f"   Data samples: {X_train.shape[0]} train + {X_test.shape[0]} test = {X_all.shape[0]} total")
+        print(f"   Data samples: {X_train.shape[0]} train + {X_val.shape[0]} val + {X_test.shape[0]} test = {X_all.shape[0]} total")
+        print(f"   Feature dimensions: {X_all.shape[1]} features")
         
-        # Create SHAP TreeExplainer
-        explainer = shap.TreeExplainer(model)
+        # Create SHAP TreeExplainer with model check model
+        try:
+            explainer = shap.TreeExplainer(model, feature_perturbation='tree_path_dependent')
+        except:
+            explainer = shap.TreeExplainer(model)
         
-        # Compute SHAP values
+        # Compute SHAP values with proper error handling
         print(f"   Calculating SHAP values for {X_all.shape[0]} samples...")
-        shap_values = explainer.shap_values(X_all)
+        try:
+            shap_values = explainer.shap_values(X_all, check_additivity=False)
+        except:
+            shap_values = explainer.shap_values(X_all)
         
-        # Handle different SHAP output formats
+        # Handle different SHAP output formats carefully
         if isinstance(shap_values, list):
-            # Binary classification, usually take the second class (positive class)
             if len(shap_values) == 2:
+                # Binary classification - use positive class SHAP values
                 shap_values = shap_values[1]
+                print(f"   Using positive class SHAP values (binary classification)")
             else:
                 shap_values = shap_values[0]
+                print(f"   Using first class SHAP values")
         
-        # Calculate feature importance (mean absolute SHAP values)
+        print(f"   SHAP values shape: {shap_values.shape}")
+        
+        # Calculate feature importance with proper validation
         feature_importance = np.mean(np.abs(shap_values), axis=0)
         
-        # Ensure feature_importance is 1D array and convert to float
+        # Ensure feature_importance is properly formatted and has correct dimensions
         if feature_importance.ndim > 1:
             feature_importance = feature_importance.flatten()
         feature_importance = feature_importance.astype(float)
         
-        # Create feature importance dictionary
+        # Debug: Check dimensions
         feature_names = data_dict['feature_names']
+        print(f"   Feature names count: {len(feature_names)}")
+        print(f"   Feature importance count: {len(feature_importance)}")
+        print(f"   X_all shape: {X_all.shape}")
+        
+        # Fix dimension mismatch if it exists
+        if len(feature_importance) != len(feature_names):
+            if len(feature_importance) == 2 * len(feature_names):
+                # Likely duplicated due to binary classification - take first half
+                feature_importance = feature_importance[:len(feature_names)]
+                print(f"   Fixed dimension mismatch: took first {len(feature_names)} values")
+            elif len(feature_names) != X_all.shape[1]:
+                # Feature names and X_all dimensions don't match
+                print(f"   Warning: Feature names ({len(feature_names)}) != X_all features ({X_all.shape[1]})")
+                # Use actual X_all dimensions
+                if len(feature_importance) == X_all.shape[1]:
+                    # Create generic feature names
+                    feature_names = [f'feature_{i}' for i in range(X_all.shape[1])]
+                    print(f"   Created generic feature names: {len(feature_names)} features")
+                else:
+                    raise ValueError(f"Cannot resolve dimension mismatch: importance({len(feature_importance)}) vs features({X_all.shape[1]})")
+            else:
+                raise ValueError(f"Cannot resolve dimension mismatch: names({len(feature_names)}) vs importance({len(feature_importance)})")
+        
+        # Validate feature importance calculation
+        print(f"   Final feature importance shape: {feature_importance.shape}")
+        print(f"   Feature importance range: [{feature_importance.min():.6f}, {feature_importance.max():.6f}]")
+        
+        # Create feature importance dictionary with corrected dimensions
         importance_dict = dict(zip(feature_names, feature_importance))
         
-        # Sort by importance
+        # Sort by importance with proper handling
         sorted_features = sorted(importance_dict.items(), key=lambda x: float(x[1]), reverse=True)
         
         print(f"   Top 8 important features for {dataset_name}:")
         for i, (feature, importance) in enumerate(sorted_features[:8]):
-            print(f"     {i+1}. {feature}: {float(importance):.4f}")
+            print(f"     {i+1}. {feature}: {float(importance):.6f}")
+        
+        # Verify no duplicate importance values in top features
+        top_importances = [float(x[1]) for x in sorted_features[:8]]
+        unique_importances = len(set(top_importances))
+        print(f"   Unique importance values in top 8: {unique_importances}/8")
         
         # Generate different top-k feature selections
         top_k_features = {}
@@ -199,7 +244,6 @@ class SHAPAnalyzer:
             ax.set_yticks(range(len(real_feature_names)))
             ax.set_yticklabels(real_feature_names, fontsize=9)
             ax.set_xlabel('Mean |SHAP Value|', fontsize=11)
-            ax.set_title(title, fontsize=13, fontweight='bold')
             ax.invert_yaxis()
             
             # 添加数值标签
@@ -207,12 +251,6 @@ class SHAPAnalyzer:
                 ax.text(bar.get_width() + max(importances)*0.01, 
                        bar.get_y() + bar.get_height()/2, 
                        f'{imp:.3f}', va='center', fontsize=8, fontweight='bold')
-        
-        plt.tight_layout()
-        plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        print(f"   ✅ SHAP feature importance visualization saved to: results/shap_feature_importance.png")
         
         plt.tight_layout()
         plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight')

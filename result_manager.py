@@ -153,7 +153,6 @@ class ResultManager:
         print("📈 生成SHAP特征重要性排序图...")
         
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-        fig.suptitle('SHAP特征重要性排序 (各数据集)', fontsize=16, fontweight='bold')
         
         dataset_names = ['uci', 'german', 'australian']
         dataset_labels = ['UCI信用卡', 'German信用', 'Australian信用']
@@ -190,7 +189,6 @@ class ResultManager:
                     axes[i].set_yticks(range(len(top_features)))
                     axes[i].set_yticklabels(top_features['feature'], fontsize=10)
                     axes[i].set_xlabel('SHAP重要性值', fontsize=12)
-                    axes[i].set_title(f'{dataset_label}数据集', fontsize=14, fontweight='bold')
                     axes[i].grid(axis='x', alpha=0.3)
                     
                     # 反转y轴，让最重要的特征在顶部

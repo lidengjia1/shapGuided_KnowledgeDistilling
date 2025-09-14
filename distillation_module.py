@@ -13,6 +13,9 @@ import warnings
 import multiprocessing as mp
 import os
 
+# 导入消融实验分析器
+from ablation_analyzer import ablation_analyzer
+
 warnings.filterwarnings('ignore')
 
 # 设置matplotlib后端为非交互式，避免多线程问题
@@ -359,7 +362,7 @@ class KnowledgeDistillator:
     
     
     def run_comprehensive_distillation(self, dataset_names, k_range, temperature_range, alpha_range, max_depth_range):
-        """运行综合知识蒸馏实验（Top-k特征）"""
+        """运行综合知识蒸馏实验（Top-k特征）并记录消融实验数据"""
         results = {}
         
         for dataset_name in dataset_names:
@@ -388,6 +391,19 @@ class KnowledgeDistillator:
                                 use_all_features=False
                             )
                             
+                            # 记录消融实验数据
+                            ablation_analyzer.record_experiment_result(
+                                dataset_name=dataset_name,
+                                k=k,
+                                temperature=temperature,
+                                alpha=alpha,
+                                max_depth=max_depth,
+                                accuracy=result['accuracy'],
+                                f1_score=result['f1'],
+                                precision=result['precision'],
+                                recall=result['recall']
+                            )
+                            
                             if result['accuracy'] > best_accuracy:  # 改为使用准确率
                                 best_accuracy = result['accuracy']
                                 best_result = result
@@ -399,6 +415,12 @@ class KnowledgeDistillator:
             results[dataset_name]['best'] = best_result
             results[dataset_name]['best_k'] = best_k
             print(f"     Best Accuracy: {best_accuracy:.4f} with k={best_k}")  # 改为显示准确率
+        
+        # 保存消融实验数据和创建可视化
+        print("\n📊 Saving ablation study data and creating visualizations...")
+        ablation_analyzer.save_ablation_data()
+        ablation_analyzer.create_ablation_visualizations()
+        ablation_analyzer.generate_summary_report()
         
         return results
     

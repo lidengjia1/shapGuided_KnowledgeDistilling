@@ -34,7 +34,7 @@ from neural_models import train_all_teacher_models
 from shap_analysis import SHAPAnalyzer
 from distillation_module import KnowledgeDistillator
 from result_manager import ResultManager
-from teacher_model_saver import TeacherModelSaver
+from ablation_analyzer import AblationStudyAnalyzer
 
 warnings.filterwarnings('ignore')
 
@@ -76,10 +76,6 @@ def main():
         # 2. 教师模型训练阶段
         # ========================
         teacher_models = train_all_teacher_models(processed_data)
-        
-        # 保存教师模型到trained_models文件夹
-        model_saver = TeacherModelSaver()
-        model_saver.save_teacher_models(teacher_models)
         
         # ========================
         # 3. SHAP特征重要性分析
@@ -170,8 +166,8 @@ def main():
         # 2. 生成SHAP特征重要性排序图
         shap_viz_path = result_manager.generate_shap_visualization(all_shap_results)
         
-        # 3. 提取最优Top-k规则
-        rules_path = result_manager.extract_best_topk_rules(top_k_distillation_results, processed_data)
+        # 3. 提取最优全特征蒸馏规则
+        rules_path = result_manager.extract_best_all_feature_rules(all_feature_distillation_results, processed_data)
         
         # 4. 清理不需要的文件
         result_manager.clean_output_files()
@@ -180,19 +176,33 @@ def main():
         print(f"   📁 核心结果文件已保存:")
         print(f"   📊 模型性能对比表格: {comparison_excel_path}")
         print(f"   � SHAP特征重要性图: {shap_viz_path}")
-        print(f"   🌳 最优Top-k决策规则: {rules_path}")
-        print(f"   � 训练好的模型文件: ./trained_models/")
+        print(f"   🌳 最优全特征蒸馏规则: {rules_path}")
+        print(f"   📈 消融实验结果已在全特征蒸馏阶段生成")
         
-        # 显示最优蒸馏树信息
+        # 显示最优蒸馏配置信息
         print(f"\n🏆 最优配置总结:")
+        
+        # 显示全特征蒸馏的最优配置
+        print(f"   🌟 全特征蒸馏最优配置:")
+        for dataset_name in ['uci', 'german', 'australian']:
+            if dataset_name in all_feature_distillation_results:
+                best_config = result_manager._find_best_all_feature_config(all_feature_distillation_results[dataset_name])
+                if best_config:
+                    print(f"     • {dataset_name.upper()}数据集:")
+                    print(f"       - 参数: T={best_config.get('temperature', 'N/A')}, "
+                          f"α={best_config.get('alpha', 'N/A')}, D={best_config.get('max_depth', 'N/A')}")
+                    print(f"       - 性能: Accuracy={best_config.get('accuracy', 0):.4f}, F1={best_config.get('f1', 0):.4f}")
+        
+        # 显示Top-k蒸馏的最优配置
+        print(f"   🧪 Top-k蒸馏最优配置:")
         for dataset_name in ['uci', 'german', 'australian']:
             if dataset_name in top_k_distillation_results:
                 best_config = result_manager._find_best_topk_config(top_k_distillation_results[dataset_name])
                 if best_config:
-                    print(f"   • {dataset_name.upper()}数据集:")
-                    print(f"     - 配置: k={best_config.get('k', 'N/A')}, T={best_config.get('temperature', 'N/A')}, "
+                    print(f"     • {dataset_name.upper()}数据集:")
+                    print(f"       - 参数: k={best_config.get('k', 'N/A')}, T={best_config.get('temperature', 'N/A')}, "
                           f"α={best_config.get('alpha', 'N/A')}, D={best_config.get('max_depth', 'N/A')}")
-                    print(f"     - 性能: Accuracy={best_config.get('accuracy', 0):.4f}, F1={best_config.get('f1', 0):.4f}")
+                    print(f"       - 性能: Accuracy={best_config.get('accuracy', 0):.4f}, F1={best_config.get('f1', 0):.4f}")
         
     except Exception as e:
         print(f"\n❌ Error during system execution: {str(e)}")

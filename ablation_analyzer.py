@@ -11,8 +11,16 @@ from datetime import datetime
 import json
 import os
 
-# 设置matplotlib为非交互式模式
+# 设置matplotlib为非交互式模式和字体
+import matplotlib
+matplotlib.use('Agg')  # 非交互式后端
+plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+matplotlib.use('Agg')
 plt.style.use('default')
+plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 10
 sns.set_palette("husl")
 
 class AblationStudyAnalyzer:
@@ -61,32 +69,26 @@ class AblationStudyAnalyzer:
         return csv_path
         
     def create_ablation_visualizations(self):
-        """创建2x2消融实验可视化图"""
+        """创建1x2消融实验可视化图 - 只关注α和深度参数"""
         if not self.ablation_results:
             print("❌ No ablation results to visualize")
             return None
             
         df = pd.DataFrame(self.ablation_results)
         
-        # 创建2x2子图
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        # 创建1x2子图
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         
         # 数据集颜色映射 - 使用简单的颜色区分
         datasets = df['dataset'].unique()
         colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝色、橙色、绿色
         dataset_colors = dict(zip(datasets, colors[:len(datasets)]))
         
-        # 1. Top-k特征数量分析
-        self._plot_topk_ablation(df, axes[0, 0], dataset_colors)
+        # 1. 加权参数α分析
+        self._plot_alpha_ablation(df, axes[0], dataset_colors)
         
-        # 2. 温度参数分析
-        self._plot_temperature_ablation(df, axes[0, 1], dataset_colors)
-        
-        # 3. 加权参数α分析
-        self._plot_alpha_ablation(df, axes[1, 0], dataset_colors)
-        
-        # 4. 决策树深度分析
-        self._plot_depth_ablation(df, axes[1, 1], dataset_colors)
+        # 2. 决策树深度分析
+        self._plot_depth_ablation(df, axes[1], dataset_colors)
         
         plt.tight_layout()
         
@@ -143,10 +145,11 @@ class AblationStudyAnalyzer:
                    label=dataset.upper(), marker='^', linewidth=2, markersize=6,
                    color=dataset_colors[dataset])
                        
-        ax.set_xlabel('Weight Parameter (α)', fontsize=12)
-        ax.set_ylabel('Accuracy', fontsize=12)
+        ax.set_xlabel('Weight Parameter (α)', fontsize=12, fontfamily='sans-serif')
+        ax.set_ylabel('Accuracy', fontsize=12, fontfamily='sans-serif')
+        ax.set_title('Alpha Parameter Ablation Study', fontsize=14, fontfamily='sans-serif')
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(fontsize=10)
         
     def _plot_depth_ablation(self, df, ax, dataset_colors):
         """绘制决策树深度的消融分析"""
@@ -159,10 +162,11 @@ class AblationStudyAnalyzer:
                    label=dataset.upper(), marker='d', linewidth=2, markersize=6,
                    color=dataset_colors[dataset])
                        
-        ax.set_xlabel('Decision Tree Max Depth', fontsize=12)
-        ax.set_ylabel('Accuracy', fontsize=12)
+        ax.set_xlabel('Decision Tree Max Depth', fontsize=12, fontfamily='sans-serif')
+        ax.set_ylabel('Accuracy', fontsize=12, fontfamily='sans-serif')
+        ax.set_title('Tree Depth Ablation Study', fontsize=14, fontfamily='sans-serif')
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(fontsize=10)
         ax.set_xticks(sorted(df['max_depth'].unique()))
         
     def load_and_visualize_existing_data(self, data_path):
@@ -221,7 +225,12 @@ class AblationStudyAnalyzer:
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report_text)
             
+        # 生成Excel报告
+        excel_path = f'results/ablation_study_results_{self.experiment_timestamp}.xlsx'
+        df.to_excel(excel_path, index=False)
+        
         print(f"✅ Ablation study report saved: {report_path}")
+        print(f"✅ Ablation study Excel saved: {excel_path}")
         print("\n" + report_text)
         
         return report_path

@@ -204,6 +204,85 @@ class ResultManager:
         print(f"   ✅ SHAP可视化图已保存：{img_path}")
         return img_path
     
+    def extract_best_all_feature_rules(self, all_feature_results, processed_data):
+        """
+        提取最优全特征蒸馏规则
+        
+        Args:
+            all_feature_results: 全特征蒸馏结果
+            processed_data: 预处理后的数据
+            
+        Returns:
+            str: 保存的规则文件路径
+        """
+        print("🌳 提取最优全特征决策树规则...")
+        
+        rules_data = []
+        
+        for dataset_name in ['uci', 'german', 'australian']:
+            if dataset_name in all_feature_results:
+                best_config = all_feature_results[dataset_name].get('best')
+                
+                if best_config:
+                    # 提取决策规则文本 (注意：rules是字典格式)
+                    rules_data = best_config.get('rules', {})
+                    if isinstance(rules_data, dict) and 'rules' in rules_data:
+                        # rules_data是字典，包含rules列表
+                        tree_rules = '\n'.join(rules_data['rules']) if rules_data['rules'] else "规则提取失败"
+                    elif isinstance(rules_data, list):
+                        # rules_data直接是列表
+                        tree_rules = '\n'.join(rules_data) if rules_data else "规则提取失败"
+                    elif isinstance(rules_data, str):
+                        # rules_data是字符串
+                        tree_rules = rules_data
+                    else:
+                        tree_rules = "规则格式错误"
+                    
+                    rules_data.append({
+                        'dataset': dataset_name.upper(),
+                        'accuracy': best_config.get('accuracy', 0),
+                        'f1_score': best_config.get('f1', 0),
+                        'precision': best_config.get('precision', 0),
+                        'recall': best_config.get('recall', 0),
+                        'alpha': best_config.get('alpha', 'N/A'),
+                        'temperature': best_config.get('temperature', 'N/A'),
+                        'max_depth': best_config.get('max_depth', 'N/A'),
+                        'tree_rules': tree_rules
+                    })
+        
+        if not rules_data:
+            print("❌ 没有找到有效的全特征蒸馏规则")
+            return None
+        
+        # 保存规则到文件
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        rules_file = os.path.join(self.results_dir, f'best_all_feature_rules_{timestamp}.txt')
+        
+        with open(rules_file, 'w', encoding='utf-8') as f:
+            f.write("="*80 + "\n")
+            f.write("最优全特征知识蒸馏决策树规则\n")
+            f.write("Best All-Feature Knowledge Distillation Decision Tree Rules\n")
+            f.write("="*80 + "\n")
+            f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            
+            for rule_data in rules_data:
+                f.write(f"📊 {rule_data['dataset']} Dataset:\n")
+                f.write(f"   性能指标:\n")
+                f.write(f"     • Accuracy: {rule_data['accuracy']:.4f}\n")
+                f.write(f"     • F1-Score: {rule_data['f1_score']:.4f}\n")
+                f.write(f"     • Precision: {rule_data['precision']:.4f}\n")
+                f.write(f"     • Recall: {rule_data['recall']:.4f}\n")
+                f.write(f"   最优参数:\n")
+                f.write(f"     • Alpha (α): {rule_data['alpha']}\n")
+                f.write(f"     • Temperature (T): {rule_data['temperature']}\n")
+                f.write(f"     • Max Depth: {rule_data['max_depth']}\n")
+                f.write(f"   决策规则:\n")
+                f.write(f"{rule_data['tree_rules']}\n")
+                f.write("-"*50 + "\n\n")
+        
+        print(f"   ✅ 全特征蒸馏规则已保存：{rules_file}")
+        return rules_file
+    
     def extract_best_topk_rules(self, topk_results, processed_data):
         """
         提取最优Top-k规则
@@ -270,33 +349,79 @@ class ResultManager:
         return rules_path
     
     def clean_output_files(self):
-        """清理旧的输出文件，只保留最新的三个核心文件"""
+        """清理旧的输出文件，只保留最新的重要核心文件"""
         print("🧹 清理旧的输出文件...")
         
-        # 需要保留的文件模式
-        keep_patterns = [
-            'model_comparison_',
-            'shap_feature_importance.png',
-            'best_topk_rules_'
+        # 获取当前时间戳模式，用于识别当前实验的文件
+        current_date = datetime.now().strftime('%Y%m%d')
+        
+        # 核心保留文件模式（当前实验生成的重要文件）
+        core_keep_patterns = [
+            'shap_feature_importance.png',         # SHAP图 (无时间戳)
         ]
         
-        # 删除其他文件
+        # 需要保留最新的文件模式（基于时间戳）
+        timestamped_keep_patterns = [
+            'model_comparison_',                    # 模型对比表格
+            'best_all_feature_rules_',             # 全特征规则文件  
+            'ablation_study_analysis_',            # 消融实验图
+            'ablation_study_results_'              # 消融实验Excel
+        ]
+        
+        # 旧文件清理模式（这些文件可以安全删除）
+        old_file_patterns = [
+            'best_topk_rules_',                    # 旧的top-k规则文件
+            'simplified_results_',                 # 旧的简化结果
+            'master_results_table_',               # 旧的主结果表
+            'teacher_model_',                      # 教师模型文件（pkl/pth）
+            'processed_data.pkl',                  # 预处理数据缓存
+            'distillation_results.pkl',           # 蒸馏结果缓存  
+            'shap_results.pkl',                    # SHAP结果缓存
+            'tree_text_',                          # 决策树文本文件
+            'comprehensive_model_comparison.xlsx', # 旧的综合对比文件
+            'decision_tree_rules_analysis.xlsx'    # 旧的决策树分析文件
+        ]
+        
+        deleted_count = 0
         for filename in os.listdir(self.results_dir):
             file_path = os.path.join(self.results_dir, filename)
-            
-            # 检查是否需要保留
-            should_keep = False
-            for pattern in keep_patterns:
-                if pattern in filename:
-                    should_keep = True
+            if not os.path.isfile(file_path):
+                continue
+                
+            # 检查是否是核心保留文件
+            is_core_file = any(pattern in filename for pattern in core_keep_patterns)
+            if is_core_file:
+                continue
+                
+            # 检查是否是当前日期的时间戳文件（保留今天生成的）
+            is_current_timestamped = False
+            for pattern in timestamped_keep_patterns:
+                if pattern in filename and current_date in filename:
+                    is_current_timestamped = True
                     break
+            if is_current_timestamped:
+                continue
+                
+            # 检查是否是可以删除的旧文件
+            should_delete = any(pattern in filename for pattern in old_file_patterns)
             
-            if not should_keep and os.path.isfile(file_path):
+            # 或者是过期的时间戳文件（不是今天的）
+            is_old_timestamped = False
+            for pattern in timestamped_keep_patterns:
+                if pattern in filename and current_date not in filename:
+                    is_old_timestamped = True
+                    break
+                    
+            if should_delete or is_old_timestamped:
                 try:
                     os.remove(file_path)
-                    print(f"   删除文件：{filename}")
+                    print(f"   删除旧文件：{filename}")
+                    deleted_count += 1
                 except Exception as e:
                     print(f"   删除文件失败 {filename}: {e}")
+        
+        if deleted_count == 0:
+            print("   没有发现需要清理的旧文件")
     
     def _extract_best_result(self, results):
         """从结果中提取最佳模型"""
@@ -372,6 +497,17 @@ class ResultManager:
         return best_result
         
         return best_result
+    
+    def _find_best_all_feature_config(self, results):
+        """找到最佳全特征蒸馏配置的详细信息"""
+        if not results:
+            return None
+        
+        # 全特征蒸馏结果结构相对简单，直接返回best配置
+        if isinstance(results, dict) and 'best' in results:
+            return results['best']
+        
+        return None
     
     def _find_best_topk_config(self, results):
         """找到最佳Top-k配置的详细信息"""

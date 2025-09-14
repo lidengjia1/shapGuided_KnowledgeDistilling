@@ -323,7 +323,7 @@ class KnowledgeDistillator:
         }
     
     def run_all_feature_distillation(self, dataset_names, temperature_range, alpha_range, max_depth_range):
-        """运行全特征知识蒸馏实验"""
+        """运行全特征知识蒸馏实验并记录消融实验数据"""
         results = {}
         
         for dataset_name in dataset_names:
@@ -348,6 +348,19 @@ class KnowledgeDistillator:
                             max_depth=max_depth
                         )
                         
+                        # 记录全特征蒸馏的消融实验数据
+                        ablation_analyzer.record_experiment_result(
+                            dataset_name=dataset_name,
+                            k=None,  # 全特征蒸馏没有k值
+                            temperature=temperature,
+                            alpha=alpha,
+                            max_depth=max_depth,
+                            accuracy=result['accuracy'],
+                            f1_score=result['f1'],
+                            precision=result['precision'],
+                            recall=result['recall']
+                        )
+                        
                         if result['accuracy'] > best_accuracy:  # 改为使用准确率
                             best_accuracy = result['accuracy']
                             best_result = result
@@ -358,11 +371,17 @@ class KnowledgeDistillator:
             results[dataset_name]['best'] = best_result
             print(f"     Best Accuracy: {best_accuracy:.4f}")  # 改为显示准确率
         
+        # 保存消融实验数据和创建可视化
+        print("\n📊 Saving ablation study data and creating visualizations for all-feature distillation...")
+        ablation_analyzer.save_ablation_data()
+        ablation_analyzer.create_ablation_visualizations()
+        ablation_analyzer.generate_summary_report()
+        
         return results
     
     
     def run_comprehensive_distillation(self, dataset_names, k_range, temperature_range, alpha_range, max_depth_range):
-        """运行综合知识蒸馏实验（Top-k特征）并记录消融实验数据"""
+        """运行综合知识蒸馏实验（Top-k特征）"""
         results = {}
         
         for dataset_name in dataset_names:
@@ -391,19 +410,6 @@ class KnowledgeDistillator:
                                 use_all_features=False
                             )
                             
-                            # 记录消融实验数据
-                            ablation_analyzer.record_experiment_result(
-                                dataset_name=dataset_name,
-                                k=k,
-                                temperature=temperature,
-                                alpha=alpha,
-                                max_depth=max_depth,
-                                accuracy=result['accuracy'],
-                                f1_score=result['f1'],
-                                precision=result['precision'],
-                                recall=result['recall']
-                            )
-                            
                             if result['accuracy'] > best_accuracy:  # 改为使用准确率
                                 best_accuracy = result['accuracy']
                                 best_result = result
@@ -415,12 +421,6 @@ class KnowledgeDistillator:
             results[dataset_name]['best'] = best_result
             results[dataset_name]['best_k'] = best_k
             print(f"     Best Accuracy: {best_accuracy:.4f} with k={best_k}")  # 改为显示准确率
-        
-        # 保存消融实验数据和创建可视化
-        print("\n📊 Saving ablation study data and creating visualizations...")
-        ablation_analyzer.save_ablation_data()
-        ablation_analyzer.create_ablation_visualizations()
-        ablation_analyzer.generate_summary_report()
         
         return results
     

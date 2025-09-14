@@ -8,6 +8,10 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+# 设置字体
+plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
 import seaborn as sns
 import shap
 import warnings
@@ -21,6 +25,9 @@ warnings.filterwarnings('ignore')
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 plt.style.use('default')
+# 设置默认字体
+plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
 
 class SHAPAnalyzer:
     """SHAP特征重要性分析器 - 基于决策树模型"""
@@ -215,10 +222,6 @@ class SHAPAnalyzer:
     def create_combined_shap_visualization(self, all_shap_results):
         """Create combined SHAP visualization for three datasets"""
         print(f"📊 Creating combined SHAP visualization...")
-        
-        # 设置英文字体和样式
-        plt.rcParams['font.family'] = 'Arial'
-        plt.rcParams['axes.unicode_minus'] = False
         
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         

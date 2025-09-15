@@ -2,7 +2,12 @@
 信用评分模型优化系统 - 主程序
 Credit Scoring Model Optimization System - Main Program
 
-基于SHAP特征重要性分析和知识蒸馏的信用评分模型优化系统
+基        # ========================
+        # 2. 教师模型训练
+        # ========================
+        print(f"\n🧠 Phase 2: Teacher Model Training")
+        print(f"   Training neural network teacher models...")
+        teacher_models = train_all_teacher_models(processed_data)P特征重要性分析和知识蒸馏的信用评分模型优化系统
 模块化架构，支持扩展参数组合和改进的用户体验
 """
 
@@ -41,13 +46,22 @@ warnings.filterwarnings('ignore')
 def main():
     """主函数 - 运行完整的信用评分模型优化系统"""
     
+    from multiprocessing import cpu_count
+    
     print("="*80)
     print("🎯 信用评分模型优化系统 | Credit Scoring Model Optimization System")
     print("   基于SHAP特征重要性分析和知识蒸馏 | SHAP + Knowledge Distillation")
     print("   增强版 - 支持决策树深度参数和消融实验分析")
     print("="*80)
+    print("🔧 并发配置:")
+    print(f"   • CPU核心数: {cpu_count()}")
+    print(f"   • 并发工作进程: {max(1, min(cpu_count() - 1, cpu_count()))} (保留1个核心给系统)")
+    print("="*80)
     print("📊 实验参数配置:")
-    print("   • Top-k特征: k=5,6,7,8")
+    print("   • Top-k特征: k=动态范围 (5到每个数据集的特征总数)")
+    print("     - German: k=5到54 (50个值)")
+    print("     - Australian: k=5到22 (18个值)")
+    print("     - UCI: k=5到23 (19个值)")
     print("   • 加权比例参数: α=0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0") 
     print("   • 温度参数: T=1,2,3,4,5") 
     print("   • 决策树深度: D=4,5,6,7,8")
@@ -88,10 +102,16 @@ def main():
         # 先训练决策树模型用于SHAP分析
         shap_analyzer.train_decision_trees()
         
-        # 计算SHAP值
+        # 计算SHAP值 - 使用动态k范围
         all_shap_results = {}
         for dataset_name in ['uci', 'german', 'australian']:
-            all_shap_results[dataset_name] = shap_analyzer.compute_shap_values(dataset_name, top_k_range=(5, 8))
+            # 每个数据集使用其特征总数作为k的最大值
+            data_dict = processed_data[dataset_name]
+            n_features = len(data_dict['feature_names'])
+            all_shap_results[dataset_name] = shap_analyzer.compute_shap_values(
+                dataset_name, 
+                top_k_range=(5, n_features)
+            )
         
         # 创建组合SHAP可视化
         shap_viz_path = shap_analyzer.create_combined_shap_visualization(all_shap_results)
@@ -139,10 +159,18 @@ def main():
         print(f"\n🧪 Phase 6: Top-k Knowledge Distillation Experiments")
         print(f"   Running comprehensive distillation with parameter optimization...")
         
+        # 获取每个数据集的动态k范围 (从5到每个数据集的特征总数)
+        k_ranges = {}
+        for dataset_name in ['uci', 'german', 'australian']:
+            data_dict = processed_data[dataset_name]
+            n_features = len(data_dict['feature_names'])
+            k_ranges[dataset_name] = (5, n_features)
+            print(f"   {dataset_name.upper()}: k范围 5 到 {n_features} ({n_features-4} 个值)")
+        
         # Top-k特征蒸馏实验
         top_k_distillation_results = distillator.run_comprehensive_distillation(
             dataset_names=['uci', 'german', 'australian'],
-            k_range=(5, 10),            # k: 5-10
+            k_ranges=k_ranges,         # 每个数据集的动态k范围
             temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5 (间隔1)
             alpha_range=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],  # Alpha: 0.0-1.0 (间隔0.1)
             max_depth_range=[4, 5, 6, 7, 8]        # Depth: 4-8

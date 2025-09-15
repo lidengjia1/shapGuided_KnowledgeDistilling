@@ -4,6 +4,8 @@ SHAP Feature Importance Analysis Module
 """
 
 import numpy as np
+import os
+from multiprocessing import cpu_count
 # 设置matplotlib后端为非交互式，避免多线程问题
 import matplotlib
 matplotlib.use('Agg')
@@ -36,11 +38,24 @@ class SHAPAnalyzer:
         self.processed_data = processed_data
         self.decision_tree_models = {}
         
+        # 设置并发数量：Windows平台使用较少的jobs避免问题
+        import platform
+        if platform.system() == 'Windows':
+            # Windows上限制并发数量，避免进程管理问题
+            self.n_jobs = min(4, max(1, cpu_count() // 2))
+        else:
+            # Linux/Mac可以使用更多并发
+            self.n_jobs = max(1, min(cpu_count() - 1, cpu_count()))
+        print(f"🔧 SHAP Analyzer initialized with {self.n_jobs} parallel jobs (CPU cores: {cpu_count()}, Platform: {platform.system()})")
+        
     def train_decision_trees(self):
         """Train decision tree models for each dataset for SHAP analysis"""
         print("🌳 Training decision trees for SHAP analysis...")
         
-        for dataset_name, data_dict in self.processed_data.items():
+        from tqdm import tqdm
+        datasets = list(self.processed_data.items())
+        
+        for dataset_name, data_dict in tqdm(datasets, desc="🌳 Training Trees", unit="dataset"):
             print(f"   Training decision tree for {dataset_name}...")
             
             X_train = data_dict['X_train']
@@ -63,13 +78,13 @@ class SHAPAnalyzer:
                     random_state=42
                 )
                 
-                # Evaluate model using cross-validation
-                scores = cross_val_score(dt, X_train, y_train, cv=5, scoring='accuracy', n_jobs=1)
+                # Evaluate model using cross-validation with parallel processing
+                scores = cross_val_score(dt, X_train, y_train, cv=5, scoring='accuracy', n_jobs=self.n_jobs)
                 return scores.mean()
             
-            # Create Optuna study and optimize
+            # Create Optuna study and optimize with parallel execution
             study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
-            study.optimize(objective, n_trials=50, show_progress_bar=False)
+            study.optimize(objective, n_trials=50, show_progress_bar=False, n_jobs=self.n_jobs)
             
             # Train final model with best parameters
             best_params = study.best_params
@@ -98,7 +113,7 @@ class SHAPAnalyzer:
         
         print("✅ Decision trees trained for SHAP analysis")
         
-    def compute_shap_values(self, dataset_name, top_k_range=(5, 8)):
+    def compute_shap_values(self, dataset_name, top_k_range=None):
         """Compute SHAP values using decision tree model with full dataset
         
         SHAP computation methodology:
@@ -107,10 +122,21 @@ class SHAPAnalyzer:
         3. Calculate SHAP values for each individual sample
         4. Aggregate feature importance through mean absolute SHAP values
         5. Ensure precise feature ranking without duplicates
+        
+        Args:
+            dataset_name: 数据集名称
+            top_k_range: k值范围，如果为None则自动设置为(5, 特征总数)
         """
+        # 如果没有指定k范围，则根据数据集特征数量自动设置
+        if top_k_range is None:
+            data_dict = self.processed_data[dataset_name]
+            n_features = len(data_dict['feature_names'])
+            top_k_range = (5, n_features)
+        
         print(f"\n🔍 Computing SHAP values for {dataset_name.upper()} dataset...")
         print(f"   Method: TreeExplainer with decision tree model")
         print(f"   Using FULL dataset for accurate SHAP computation")
+        print(f"   Top-k range: {top_k_range[0]} to {top_k_range[1]}")
         
         model_info = self.decision_tree_models[dataset_name]
         model = model_info['model']
@@ -220,10 +246,10 @@ class SHAPAnalyzer:
         }
     
     def create_combined_shap_visualization(self, all_shap_results):
-        """Create combined SHAP visualization for three datasets"""
-        print(f"📊 Creating combined SHAP visualization...")
+        """Create combined SHAP visualization for three datasets with top 20 features"""
+        print(f"📊 Creating combined SHAP visualization with top 20 features...")
         
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(28, 16))
         
         # 按要求的顺序：German, Australian, UCI
         datasets = ['german', 'australian', 'uci']
@@ -233,33 +259,59 @@ class SHAPAnalyzer:
             ax = axes[idx]
             shap_results = all_shap_results[dataset_name]
             
-            # 获取Top 8特征 - 使用真实特征名
-            top_features = shap_results['sorted_features'][:8]
+            # 获取Top 20特征 - 使用真实特征名
+            top_features = shap_results['sorted_features'][:20]
             features, importances = zip(*top_features)
             importances = [float(x) for x in importances]
             
             # 获取真实的原始特征名
             real_feature_names = self._get_real_feature_names(dataset_name, features)
             
-            # 创建条形图
+            # 创建更浅的配色方案 - 使用浅色调
+            if idx == 0:  # German - 浅蓝色系
+                colors_gradient = plt.cm.Blues(np.linspace(0.3, 0.7, 20))
+            elif idx == 1:  # Australian - 浅绿色系  
+                colors_gradient = plt.cm.Greens(np.linspace(0.3, 0.7, 20))
+            else:  # UCI - 浅橙色系
+                colors_gradient = plt.cm.Oranges(np.linspace(0.3, 0.7, 20))
+            
+            # 创建条形图 - 改进视觉效果
             bars = ax.barh(range(len(real_feature_names)), importances, 
-                          color=['#2E86AB', '#A23B72', '#F18F01'][idx], alpha=0.8)
+                          color=colors_gradient, alpha=0.85, edgecolor='white', linewidth=1.0)
+            
             ax.set_yticks(range(len(real_feature_names)))
-            ax.set_yticklabels(real_feature_names, fontsize=9)
-            ax.set_xlabel('Mean |SHAP Value|', fontsize=11)
+            ax.set_yticklabels(real_feature_names, fontsize=12, fontweight='normal')
+            ax.set_xlabel('Mean |SHAP Value|', fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=16, fontweight='bold', pad=30)
             ax.invert_yaxis()
             
-            # 添加数值标签
+            # 添加网格线以提高可读性
+            ax.grid(axis='x', alpha=0.3, linestyle='--', linewidth=0.8)
+            ax.set_axisbelow(True)
+            
+            # 添加数值标签 - 改进格式
+            max_imp = max(importances)
             for i, (bar, imp) in enumerate(zip(bars, importances)):
-                ax.text(bar.get_width() + max(importances)*0.01, 
+                ax.text(bar.get_width() + max_imp*0.01, 
                        bar.get_y() + bar.get_height()/2, 
-                       f'{imp:.3f}', va='center', fontsize=8, fontweight='bold')
+                       f'{imp:.4f}', va='center', fontsize=10, 
+                       fontweight='bold', color='black')
+            
+            # 美化坐标轴
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color('#AAAAAA')
+            ax.spines['bottom'].set_color('#AAAAAA')
+            
+            # 设置背景色
+            ax.set_facecolor('#f8f9fa')
         
-        plt.tight_layout()
-        plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight')
+        plt.tight_layout(pad=4.0)
+        plt.savefig('results/shap_feature_importance.png', dpi=300, bbox_inches='tight', 
+                   facecolor='white', edgecolor='none')
         plt.close()
         
-        print(f"   ✅ SHAP feature importance visualization saved to: results/shap_feature_importance.png")
+        print(f"   ✅ SHAP feature importance visualization (Top 20) saved to: results/shap_feature_importance.png")
         
         return 'results/shap_feature_importance.png'
     

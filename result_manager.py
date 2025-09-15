@@ -150,12 +150,12 @@ class ResultManager:
         Returns:
             str: 保存的图片文件路径
         """
-        print("📈 生成SHAP特征重要性排序图...")
+        print("📈 Generating SHAP feature importance ranking visualization...")
         
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         
         dataset_names = ['uci', 'german', 'australian']
-        dataset_labels = ['UCI信用卡', 'German信用', 'Australian信用']
+        dataset_labels = ['UCI Credit', 'German Credit', 'Australian Credit']
         
         for i, (dataset_name, dataset_label) in enumerate(zip(dataset_names, dataset_labels)):
             if dataset_name in shap_results:
@@ -166,10 +166,10 @@ class ResultManager:
                     
                     # 处理不同格式的特征重要性数据
                     if isinstance(importance_data, np.ndarray):
-                        # 如果是numpy数组，创建简单的特征名称
-                        features = [f'Feature_{j}' for j in range(len(importance_data))]
+                        # 获取真实的特征名称
+                        feature_names = shap_data.get('feature_names', [f'Feature_{j}' for j in range(len(importance_data))])
                         importance_df = pd.DataFrame({
-                            'feature': features,
+                            'feature': feature_names,
                             'importance': importance_data
                         }).sort_values('importance', ascending=False)
                     elif isinstance(importance_data, pd.DataFrame):
@@ -187,8 +187,9 @@ class ResultManager:
                     axes[i].barh(range(len(top_features)), top_features['importance'], 
                                color=plt.cm.viridis(np.linspace(0, 1, len(top_features))))
                     axes[i].set_yticks(range(len(top_features)))
-                    axes[i].set_yticklabels(top_features['feature'], fontsize=10)
-                    axes[i].set_xlabel('SHAP重要性值', fontsize=12)
+                    axes[i].set_yticklabels(top_features['feature'], fontsize=9)
+                    axes[i].set_xlabel('SHAP Importance Value', fontsize=12)
+                    axes[i].set_title(f'{dataset_label}', fontsize=14)
                     axes[i].grid(axis='x', alpha=0.3)
                     
                     # 反转y轴，让最重要的特征在顶部

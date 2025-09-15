@@ -69,7 +69,7 @@ class AblationStudyAnalyzer:
         return csv_path
         
     def create_ablation_visualizations(self):
-        """创建1x2消融实验可视化图 - 只关注α和深度参数"""
+        """创建1x2消融实验可视化图 - Top-k特征数量和决策树深度"""
         if not self.ablation_results:
             print("❌ No ablation results to visualize")
             return None
@@ -77,15 +77,19 @@ class AblationStudyAnalyzer:
         df = pd.DataFrame(self.ablation_results)
         
         # 创建1x2子图
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, 2, figsize=(16, 7))
         
         # 数据集颜色映射 - 使用简单的颜色区分
         datasets = df['dataset'].unique()
         colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝色、橙色、绿色
         dataset_colors = dict(zip(datasets, colors[:len(datasets)]))
         
-        # 1. 加权参数α分析
-        self._plot_alpha_ablation(df, axes[0], dataset_colors)
+        # 1. Top-k特征数量分析 (如果数据中有k列)
+        if 'k' in df.columns:
+            self._plot_topk_ablation(df, axes[0], dataset_colors)
+        else:
+            # 如果没有k列，则绘制α参数
+            self._plot_alpha_ablation(df, axes[0], dataset_colors)
         
         # 2. 决策树深度分析
         self._plot_depth_ablation(df, axes[1], dataset_colors)
@@ -113,9 +117,17 @@ class AblationStudyAnalyzer:
                        
         ax.set_xlabel('Number of Top-k Features', fontsize=12)
         ax.set_ylabel('Accuracy', fontsize=12)
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
         ax.grid(True, alpha=0.3)
-        ax.legend()
-        ax.set_xticks(sorted(df['k'].unique()))
+        ax.legend(loc='upper right')  # 图例放右上角
+        
+        # 设置x轴间隔为5，过滤掉None值
+        k_values = sorted([k for k in df['k'].unique() if k is not None])
+        if k_values:  # 如果有有效的k值
+            ax.set_xticks([k for k in k_values if k % 5 == 0])  # x轴间隔为5
+        else:
+            # 如果没有k值，使用默认的x轴刻度
+            ax.set_xticks(sorted(df['k'].dropna().unique()) if 'k' in df.columns else [])
         
     def _plot_temperature_ablation(self, df, ax, dataset_colors):
         """绘制温度参数的消融分析"""
@@ -130,8 +142,9 @@ class AblationStudyAnalyzer:
                        
         ax.set_xlabel('Temperature Parameter (T)', fontsize=12)
         ax.set_ylabel('Accuracy', fontsize=12)
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(loc='upper right')  # 图例放右上角
         ax.set_xticks(sorted(df['temperature'].unique()))
         
     def _plot_alpha_ablation(self, df, ax, dataset_colors):
@@ -147,9 +160,10 @@ class AblationStudyAnalyzer:
                        
         ax.set_xlabel('Weight Parameter (α)', fontsize=12, fontfamily='sans-serif')
         ax.set_ylabel('Accuracy', fontsize=12, fontfamily='sans-serif')
-        ax.set_title('Alpha Parameter Ablation Study', fontsize=14, fontfamily='sans-serif')
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
         ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=10)
+        ax.legend(loc='upper right', fontsize=10)  # 图例放右上角
+        ax.set_xticks(sorted(df['alpha'].unique()))
         
     def _plot_depth_ablation(self, df, ax, dataset_colors):
         """绘制决策树深度的消融分析"""
@@ -164,9 +178,9 @@ class AblationStudyAnalyzer:
                        
         ax.set_xlabel('Decision Tree Max Depth', fontsize=12, fontfamily='sans-serif')
         ax.set_ylabel('Accuracy', fontsize=12, fontfamily='sans-serif')
-        ax.set_title('Tree Depth Ablation Study', fontsize=14, fontfamily='sans-serif')
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
         ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=10)
+        ax.legend(loc='upper right', fontsize=10)  # 图例放右上角
         ax.set_xticks(sorted(df['max_depth'].unique()))
         
     def load_and_visualize_existing_data(self, data_path):
@@ -236,15 +250,15 @@ class AblationStudyAnalyzer:
         return report_path
 
     def create_topk_ablation_visualizations(self):
-        """创建2x2 Top-k消融实验可视化图 - 关注k, α, 深度, 温度参数"""
+        """创建1x2 Top-k消融实验可视化图 - 关注Top-k特征数量和决策树深度"""
         if not self.ablation_results:
             print("❌ No Top-k ablation results to visualize")
             return None
             
         df = pd.DataFrame(self.ablation_results)
         
-        # 创建2x2子图
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        # 创建1x2子图
+        fig, axes = plt.subplots(1, 2, figsize=(16, 7))
         
         # 数据集颜色映射
         datasets = df['dataset'].unique()
@@ -252,16 +266,10 @@ class AblationStudyAnalyzer:
         dataset_colors = dict(zip(datasets, colors[:len(datasets)]))
         
         # 1. Top-k特征数量分析
-        self._plot_topk_k_ablation(df, axes[0, 0], dataset_colors)
+        self._plot_topk_k_ablation(df, axes[0], dataset_colors)
         
-        # 2. 加权参数α分析
-        self._plot_alpha_ablation(df, axes[0, 1], dataset_colors)
-        
-        # 3. 决策树深度分析
-        self._plot_depth_ablation(df, axes[1, 0], dataset_colors)
-        
-        # 4. 温度参数分析
-        self._plot_temperature_ablation(df, axes[1, 1], dataset_colors)
+        # 2. 决策树深度分析
+        self._plot_depth_ablation(df, axes[1], dataset_colors)
         
         plt.tight_layout()
         
@@ -274,7 +282,7 @@ class AblationStudyAnalyzer:
         return plot_path
 
     def _plot_topk_k_ablation(self, df, ax, dataset_colors):
-        """绘制Top-k特征数量消融分析"""
+        """绘制Top-k特征数量消融分析 - 无标题版本"""
         for dataset in df['dataset'].unique():
             dataset_df = df[df['dataset'] == dataset]
             k_accuracy = dataset_df.groupby('k')['accuracy'].mean().reset_index()
@@ -285,11 +293,17 @@ class AblationStudyAnalyzer:
         
         ax.set_xlabel('Top-k Features', fontsize=12)
         ax.set_ylabel('Accuracy', fontsize=12)
-        ax.legend()
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
+        ax.legend(loc='upper right')  # 图例放右上角
         ax.grid(True, alpha=0.3)
+        
+        # 设置x轴间隔为5
+        k_values = sorted([k for k in df['k'].unique() if k is not None])
+        if k_values:
+            ax.set_xticks([k for k in k_values if k % 5 == 0])  # x轴间隔为5
 
     def _plot_temperature_ablation(self, df, ax, dataset_colors):
-        """绘制温度参数消融分析"""
+        """绘制温度参数消融分析 - 无标题版本"""
         for dataset in df['dataset'].unique():
             dataset_df = df[df['dataset'] == dataset]
             temp_accuracy = dataset_df.groupby('temperature')['accuracy'].mean().reset_index()
@@ -300,8 +314,10 @@ class AblationStudyAnalyzer:
         
         ax.set_xlabel('Temperature', fontsize=12)
         ax.set_ylabel('Accuracy', fontsize=12)
-        ax.legend()
+        ax.set_ylim(0, 1.0)  # 设置y轴范围到1.0
+        ax.legend(loc='upper right')  # 图例放右上角
         ax.grid(True, alpha=0.3)
+        ax.set_xticks(sorted(df['temperature'].unique()))
 
     def save_ablation_data(self, prefix='ablation_study'):
         """保存消融实验数据 - 支持自定义前缀"""

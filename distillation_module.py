@@ -11,8 +11,14 @@ from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
 import warnings
 import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
 import os
 from datetime import datetime
+
+# 并发配置：使用CPU核心数-1，至少为1
+n_jobs = max(1, min(mp.cpu_count() - 1, mp.cpu_count()))
+# 只在需要时显示配置信息，避免重复输出
 
 # 导入消融实验分析器
 from ablation_analyzer import ablation_analyzer
@@ -338,11 +344,19 @@ class KnowledgeDistillator:
             best_result = None
             
             total_combinations = len(temperature_range) * len(alpha_range) * len(max_depth_range)
-            progress_bar = tqdm(total=total_combinations, desc=f"     {dataset_name}")
+            progress_bar = tqdm(total=total_combinations, desc=f"🎓 {dataset_name.upper()}", 
+                               unit="exp", position=0, leave=True)
+            print(f"     全特征实验组合数: {total_combinations}")
             
             for temperature in temperature_range:
                 for alpha in alpha_range:
                     for max_depth in max_depth_range:
+                        progress_bar.set_postfix({
+                            'T': temperature, 
+                            'α': f"{alpha:.1f}", 
+                            'D': max_depth,
+                            'Best': f"{best_accuracy:.3f}"
+                        })
                         result = self.train_student_model(
                             dataset_name=dataset_name,
                             model_type_name='decision_tree',
@@ -384,8 +398,16 @@ class KnowledgeDistillator:
         return results
     
     
-    def run_comprehensive_distillation(self, dataset_names, k_range, temperature_range, alpha_range, max_depth_range):
-        """运行综合知识蒸馏实验（Top-k特征）"""
+    def run_comprehensive_distillation(self, dataset_names, k_ranges, temperature_range, alpha_range, max_depth_range):
+        """运行综合知识蒸馏实验（Top-k特征）
+        
+        Args:
+            dataset_names: 数据集名称列表
+            k_ranges: 每个数据集的k范围字典 {'german': (5, 54), 'australian': (5, 22), 'uci': (5, 23)}
+            temperature_range: 温度参数范围
+            alpha_range: 加权参数范围
+            max_depth_range: 决策树深度范围
+        """
         global topk_ablation_analyzer
         
         # 初始化Top-k消融分析器
@@ -403,43 +425,114 @@ class KnowledgeDistillator:
             best_result = None
             best_k = None
             
-            k_values = list(range(k_range[0], k_range[1] + 1))
+            # 获取当前数据集的k范围
+            dataset_k_range = k_ranges[dataset_name]
+            k_values = list(range(dataset_k_range[0], dataset_k_range[1] + 1))
             total_combinations = len(k_values) * len(temperature_range) * len(alpha_range) * len(max_depth_range)
-            progress_bar = tqdm(total=total_combinations, desc=f"     {dataset_name}")
+            progress_bar = tqdm(total=total_combinations, desc=f"🔍 {dataset_name.upper()}", 
+                               unit="exp", position=0, leave=True)
+            print(f"     k范围: {dataset_k_range[0]} 到 {dataset_k_range[1]} ({len(k_values)} 个值)")
+            print(f"     Top-k实验组合数: {total_combinations}")
             
+            # 准备并发执行的实验参数
+            experiment_params = []
             for k in k_values:
                 for temperature in temperature_range:
                     for alpha in alpha_range:
                         for max_depth in max_depth_range:
-                            result = self.train_student_model(
-                                dataset_name=dataset_name,
-                                model_type_name='decision_tree',
-                                k=k,
-                                temperature=temperature,
-                                alpha=alpha,
-                                max_depth=max_depth,
-                                use_all_features=False
-                            )
-                            
-                            # 记录Top-k蒸馏的消融实验数据
-                            topk_ablation_analyzer.record_experiment_result(
-                                dataset_name=dataset_name,
-                                k=k,
-                                temperature=temperature,
-                                alpha=alpha,
-                                max_depth=max_depth,
-                                accuracy=result['accuracy'],
-                                f1_score=result['f1'],
-                                precision=result['precision'],
-                                recall=result['recall']
-                            )
-                            
-                            if result['accuracy'] > best_accuracy:  # 改为使用准确率
-                                best_accuracy = result['accuracy']
-                                best_result = result
-                                best_k = k
-                            
-                            progress_bar.update(1)
+                            experiment_params.append((dataset_name, k, temperature, alpha, max_depth))
+            
+            # 设置并发数量
+            import platform
+            if platform.system() == 'Windows':
+                n_jobs = min(4, max(1, mp.cpu_count() // 2))
+            else:
+                n_jobs = max(1, min(mp.cpu_count() - 1, mp.cpu_count()))
+            
+            print(f"     🚀 Using {n_jobs} parallel jobs for Top-k distillation")
+            
+            # 并发执行实验
+            def run_single_experiment(params):
+                dataset_name, k, temperature, alpha, max_depth = params
+                try:
+                    result = self.train_student_model(
+                        dataset_name=dataset_name,
+                        model_type_name='decision_tree',
+                        k=k,
+                        temperature=temperature,
+                        alpha=alpha,
+                        max_depth=max_depth,
+                        use_all_features=False
+                    )
+                    return params, result, None
+                except Exception as e:
+                    return params, None, str(e)
+            
+            # 使用进程池并行执行
+            if platform.system() == 'Windows':
+                # Windows下使用spawn方法避免pickle问题
+                mp.set_start_method('spawn', force=True)
+            
+            from multiprocessing import Pool
+            from functools import partial
+            
+            # 由于需要访问self，我们需要特殊处理
+            # 序列化实验函数
+            def experiment_worker(params):
+                dataset_name, k, temperature, alpha, max_depth = params
+                # 重新创建所需的对象（这是并发的代价）
+                # 实际执行将在主进程中完成，这里改为串行但有进度显示
+                return params
+            
+            # 因为self无法序列化，改为使用线程池来实现并发
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            all_results = []
+            with ThreadPoolExecutor(max_workers=n_jobs) as executor:
+                # 提交所有任务
+                future_to_params = {
+                    executor.submit(run_single_experiment, params): params 
+                    for params in experiment_params
+                }
+                
+                # 处理结果
+                for future in as_completed(future_to_params):
+                    params, result, error = future.result()
+                    if error:
+                        print(f"     ❌ Error in experiment {params}: {error}")
+                        continue
+                    
+                    dataset_name, k, temperature, alpha, max_depth = params
+                    
+                    # 记录Top-k蒸馏的消融实验数据
+                    topk_ablation_analyzer.record_experiment_result(
+                        dataset_name=dataset_name,
+                        k=k,
+                        temperature=temperature,
+                        alpha=alpha,
+                        max_depth=max_depth,
+                        accuracy=result['accuracy'],
+                        f1_score=result['f1'],
+                        precision=result['precision'],
+                        recall=result['recall']
+                    )
+                    
+                    all_results.append((params, result))
+                    
+                    if result['accuracy'] > best_accuracy:
+                        best_accuracy = result['accuracy']
+                        best_result = result
+                        best_k = k
+                    
+                    # 更新进度条
+                    progress_bar.set_postfix({
+                        'k': k,
+                        'T': temperature, 
+                        'α': f"{alpha:.1f}", 
+                        'D': max_depth,
+                        'Best': f"{best_accuracy:.3f}"
+                    })
+                    progress_bar.update(1)
             
             progress_bar.close()
             results[dataset_name]['best'] = best_result

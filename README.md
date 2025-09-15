@@ -1,52 +1,75 @@
-# SHAP-Guided Knowledge Distillation for Financial Credit Assessment# SHAP-Guided Knowledge Distillation for Credit Scoring
+# SHAP-Guided Knowledge Distillation for Credit Scoring
 
+## 🎯 Project Overview
 
+**基于SHAP特征重要性引导的知识蒸馏信用评分系统**
 
-## 🎯 Project Overview# SHAP-Guided Knowledge Distillation for Credit Scoring
+This project implements a comprehensive framework for **SHAP-guided knowledge distillation** in credit scoring applications. The system combines the interpretability of decision trees with the predictive power of deep neural networks through innovative knowledge distillation techniques, using SHAP (SHapley Additive exPlanations) for intelligent feature selection.
 
+---
 
+## 🧠 Teacher Model Architectures
 
-This project implements a novel SHAP-guided knowledge distillation framework for financial credit assessment. The system uses SHAP (SHapley Additive exPlanations) feature importance analysis to guide the knowledge transfer from complex neural network teachers to interpretable decision tree students.## Overview
+### German Credit Dataset (1000 samples, 54 features)
+**Enhanced Residual Neural Network** - 优化的残差网络架构
+- **Architecture**: Residual blocks with skip connections for improved gradient flow
+- **Input Layer**: Linear(54 → 512) + BatchNorm + ReLU + Dropout(0.3)
+- **Residual Block 1**: 
+  - Path: Linear(512 → 256) → BatchNorm → ReLU → Linear(256 → 256) → BatchNorm
+  - Skip: Linear(512 → 256)
+  - Output: ReLU(path + skip) + Dropout(0.3)
+- **Residual Block 2**:
+  - Path: Linear(256 → 128) → BatchNorm → ReLU → Linear(128 → 128) → BatchNorm  
+  - Skip: Linear(256 → 128)
+  - Output: ReLU(path + skip) + Dropout(0.3)
+- **Final Layers**: Linear(128 → 64) → BatchNorm → ReLU → Linear(64 → 32) → ReLU → Linear(32 → 1)
+- **Loss Function**: BCEWithLogitsLoss with class balancing (pos_weight for imbalanced data)
+- **Optimization**: AdamW (lr=0.0005, weight_decay=1e-3), ReduceLROnPlateau scheduler
+- **Training**: 250 epochs, patience=30, batch_size=32
+- **Target Accuracy**: 75%+ (improved from previous 62%)
 
+### Australian Credit Dataset (690 samples, 22 features)  
+**Deep Feed-Forward Network** - 深度前馈网络
+- **Architecture**: Sequential layers with batch normalization and dropout
+- **Layers**: 
+  - Linear(22 → 256) → BatchNorm → ReLU → Dropout(0.4)
+  - Linear(256 → 128) → BatchNorm → ReLU → Dropout(0.35)
+  - Linear(128 → 64) → BatchNorm → ReLU → Dropout(0.3)
+  - Linear(64 → 32) → ReLU → Dropout(0.25)
+  - Linear(32 → 1) → Sigmoid
+- **Loss Function**: BCELoss (balanced dataset)
+- **Optimization**: AdamW (lr=0.002, weight_decay=1e-3), ReduceLROnPlateau scheduler  
+- **Training**: 200 epochs, patience=20, batch_size=64
+- **Expected Accuracy**: 85%+
 
+### UCI Credit Default Dataset (30,000 samples, 23 features)
+**Large-Scale Deep Network** - 大规模深度网络
+- **Architecture**: Deep network optimized for large datasets
+- **Layers**:
+  - Linear(23 → 512) → BatchNorm → ReLU → Dropout(0.5)
+  - Linear(512 → 256) → BatchNorm → ReLU → Dropout(0.45)
+  - Linear(256 → 128) → BatchNorm → ReLU → Dropout(0.4)
+  - Linear(128 → 64) → BatchNorm → ReLU → Dropout(0.35)
+  - Linear(64 → 32) → ReLU → Dropout(0.3)
+  - Linear(32 → 1) → Sigmoid
+- **Loss Function**: BCELoss with focal loss characteristics for large-scale training
+- **Optimization**: AdamW (lr=0.001, weight_decay=1e-4), ReduceLROnPlateau scheduler
+- **Training**: 300 epochs, patience=25, batch_size=128  
+- **Expected Accuracy**: 82%+
 
-**Key Innovation**: Instead of using all features, our approach identifies the most important features through SHAP analysis and trains specialized distillation models using only top-k features, achieving better interpretability while maintaining competitive performance.**基于SHAP特征重要性引导的知识蒸馏信用评分系统**
+## 📊 Four-Model Comparison Framework
 
+1. **Teacher Model**: Dataset-specific deep neural networks (architectures above)
+2. **Baseline Decision Tree**: Standard scikit-learn DecisionTreeClassifier  
+3. **All-Feature Distillation**: Knowledge distillation using complete feature set
+4. **Top-k Feature Distillation**: SHAP-guided feature selection for targeted distillation
 
-
-## 📊 Research MethodologyThis project implements a comprehensive framework for **SHAP-guided knowledge distillation** in credit scoring applications. The system combines the interpretability of decision trees with the predictive power of deep neural networks through innovative knowledge distillation techniques, using SHAP (SHapley Additive exPlanations) for intelligent feature selection.
-
-
-
-### Four-Model Comparison Framework---
-
-1. **Teacher Model**: Deep Neural Network (PyTorch-based) with advanced architectures
-
-2. **Baseline Decision Tree**: Standard decision tree trained on original data## Key Features
-
-3. **All-Feature Distillation**: Decision tree trained with knowledge distillation using all features
-
-4. **Top-k Feature Distillation**: Decision tree trained with knowledge distillation using only SHAP-selected top-k features## 项目简介
-
-
-
-### Knowledge Distillation Process### 🧠 Four-Model Comparison Framework
+## 🔬 Knowledge Distillation Process
 
 - **Temperature Scaling**: T ∈ {1, 2, 3, 4, 5} for soft label generation
-
-- **Loss Combination**: α ∈ {0.0, 0.1, ..., 1.0} for balancing hard and soft losses- **Teacher Model**: Deep Neural Network (PyTorch-based)本系统实现基于SHAP特征重要性分析和知识蒸馏技术的信用评分模型，将深度神经网络的预测性能与决策树的可解释性相结合。
-
-- **Feature Selection**: k ∈ {5, 6, 7, 8} top features selected via SHAP importance
-
-- **Tree Optimization**: Optuna-based hyperparameter tuning for decision trees- **Baseline Decision Tree**: Standard scikit-learn DecisionTreeClassifier  
-
-
-
-## 📁 Directory Structure- **All-Feature Distillation**: Knowledge distillation using complete feature set### 核心技术
-
-
-
-```- **Top-k Feature Distillation**: SHAP-guided feature selection for targeted distillation- **SHAP (SHapley Additive exPlanations)**: 量化特征重要性，实现特征选择
+- **Loss Combination**: α ∈ {0.0, 0.1, ..., 1.0} for balancing hard and soft losses
+- **Feature Selection**: Dynamic k ranges (German: 5-54, Australian: 5-22, UCI: 5-23)
+- **Tree Optimization**: Optuna-based hyperparameter tuning for decision trees
 
 Financial innovation/
 
@@ -817,6 +840,113 @@ MIT License
 
 **更新日期**: 2025年9月12日  
 **版本**: v2.0.0 - CatBoost教师模型升级版
+
+---
+
+## 🧠 教师模型架构详细设计
+
+### Teacher Model Architecture Details
+
+基于最新信用评分深度学习研究，我们的系统实现了三种专门优化的神经网络架构，每种架构都针对不同数据集特征进行了定制化设计：
+
+#### 1. German Credit Dataset专用架构
+
+**网络结构**:
+```
+输入层(20维) → [256] → BatchNorm1d → ReLU → Dropout(0.3) →
+[128] → BatchNorm1d → ReLU → Dropout(0.25) →
+[64] → BatchNorm1d → ReLU → Dropout(0.2) →
+[32] → BatchNorm1d → ReLU → Dropout(0.15) →
+[16] → ReLU → Dropout(0.1) →
+[1] → Sigmoid → 输出
+```
+
+**设计理念**:
+- 针对具有挑战性的二分类任务的增强深度架构
+- 基于集成方法研究，RandomForest基准准确率约84.5%
+- 采用渐进式dropout减少策略，增强模型泛化能力
+- 广泛使用批标准化，确保训练稳定性
+
+#### 2. Australian Credit Dataset专用架构
+
+**网络结构**:
+```
+输入层(14维) → [256] → BatchNorm1d → ReLU → Dropout(0.4) →
+[128] → BatchNorm1d → ReLU → Dropout(0.35) →
+[64] → BatchNorm1d → ReLU → Dropout(0.3) →
+[32] → ReLU → Dropout(0.25) →
+[1] → Sigmoid → 输出
+```
+
+**设计理念**:
+- 针对平衡数据集特征的中等复杂度架构
+- 优化适配中等样本规模 (690样本，14特征)
+- 平衡正则化策略，避免过拟合
+- 高效架构设计，计算开销适中
+
+#### 3. UCI Taiwan Credit Dataset专用架构
+
+**网络结构**:
+```
+输入层(23维) → [512] → BatchNorm1d → ReLU → Dropout(0.5) →
+[256] → BatchNorm1d → ReLU → Dropout(0.45) →
+[128] → BatchNorm1d → ReLU → Dropout(0.4) →
+[64] → BatchNorm1d → ReLU → Dropout(0.35) →
+[32] → ReLU → Dropout(0.3) →
+[16] → ReLU →
+[1] → Sigmoid → 输出
+```
+
+**设计理念**:
+- 针对大规模数据集的深度架构 (30,000样本)
+- 受到混合方法启发，结合宽度和深度优势
+- 宽初始层设计，充分学习特征表示
+- 渐进式维度降低，逐步抽象特征
+
+### 技术实现细节
+
+#### 权重初始化
+```python
+# Xavier/Glorot均匀初始化
+nn.init.xavier_uniform_(m.weight)
+nn.init.constant_(m.bias, 0)
+```
+
+#### 训练优化策略
+- **梯度裁剪**: 最大范数1.0，防止梯度爆炸
+- **学习率调度**: ReduceLROnPlateau机制，基于验证性能自适应调整
+- **早停机制**: 基于验证损失的早停，patience=15轮
+- **训练轮数**: 最大150轮，配合高级监控机制
+
+#### 正则化技术
+- **Dropout**: 层级化dropout策略，从深层到浅层递减
+- **Batch Normalization**: 每个线性层后添加批标准化
+- **Weight Decay**: L2正则化，防止权重过大
+
+### 理论文献基础
+
+#### 核心参考文献
+1. **Kolmogorov-Arnold Networks for Credit Default Prediction** 
+   - arXiv:2411.17783
+   - 贡献：信用违约预测的高级神经架构设计原理
+
+2. **Hybrid Model of KAN and gMLP for Large-Scale Financial Data**
+   - arXiv:2412.02097  
+   - 贡献：大规模金融数据处理的混合架构技术
+
+3. **Monotonic Neural Additive Models for Credit Scoring**
+   - arXiv:2209.10070
+   - 贡献：可解释信用评分的神经网络方法
+
+4. **Financial Innovation Networks Design**
+   - arXiv:2502.00201
+   - 贡献：金融神经网络设计的最新进展
+
+#### 架构设计原则
+- **数据集适应性**: 根据数据规模和特征维度定制网络宽度和深度
+- **正则化平衡**: 根据数据复杂度调整dropout和批标准化强度
+- **计算效率**: 在保证性能的前提下优化计算复杂度
+- **可解释性**: 设计便于知识蒸馏的网络结构
 
 ---
 

@@ -200,8 +200,8 @@ def main():
         # 4. 提取最优Top-k蒸馏规则
         topk_rules_path = result_manager.extract_best_topk_rules(top_k_distillation_results, processed_data)
         
-        # 5. 清理不需要的文件
-        result_manager.clean_output_files()
+        # 5. 清理不需要的文件 - 已禁用，保留所有文件
+        # result_manager.clean_output_files()
         
         print(f"\n🎉 System Execution Completed Successfully!")
         print(f"   📁 生成的核心文件:")

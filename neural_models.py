@@ -36,25 +36,34 @@ class CreditNet(nn.Module):
         
         # Advanced architectures based on recent research
         if dataset_type == 'german':
-            # Optimized for smaller dataset with regularization focus
+            # Enhanced architecture for German credit dataset (challenging binary classification)
+            # Based on ensemble methods research: deeper network with careful regularization
+            # References: RandomForest shows ~84.5% accuracy, we aim to match with neural network
             self.layers = nn.Sequential(
-                nn.Linear(input_dim, 128),
-                nn.BatchNorm1d(128),
+                nn.Linear(input_dim, 256),
+                nn.BatchNorm1d(256),
                 nn.ReLU(),
                 nn.Dropout(0.3),
                 
+                nn.Linear(256, 128),
+                nn.BatchNorm1d(128),
+                nn.ReLU(),  
+                nn.Dropout(0.25),
+                
                 nn.Linear(128, 64),
                 nn.BatchNorm1d(64),
-                nn.ReLU(), 
-                nn.Dropout(0.25),
+                nn.ReLU(),
+                nn.Dropout(0.2),
                 
                 nn.Linear(64, 32),
                 nn.BatchNorm1d(32),
                 nn.ReLU(),
-                nn.Dropout(0.2),
+                nn.Dropout(0.15),
                 
                 nn.Linear(32, 16),
                 nn.ReLU(),
+                nn.Dropout(0.1),
+                
                 nn.Linear(16, 1),
                 nn.Sigmoid()
             )
@@ -357,12 +366,12 @@ def create_teacher_model(dataset_name, processed_data):
         num_epochs = 200
         patience = 20
         weight_decay = 1e-3
-    else:  # german
-        batch_size = 32   # Smaller batch for small dataset
-        learning_rate = 0.003
-        num_epochs = 150
-        patience = 15
-        weight_decay = 1e-3
+    else:  # german - Enhanced parameters for better performance
+        batch_size = 16   # Smaller batch for small dataset - better gradient estimation
+        learning_rate = 0.001  # Lower learning rate for more stable training
+        num_epochs = 200  # More epochs for better convergence  
+        patience = 25     # More patience for thorough training
+        weight_decay = 5e-4  # Moderate regularization
     
     train_loader, val_loader, test_loader = trainer.create_data_loaders(data_dict, batch_size)
     

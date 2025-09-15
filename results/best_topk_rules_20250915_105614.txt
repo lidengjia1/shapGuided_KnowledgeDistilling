@@ -1,0 +1,112 @@
+================================================================================
+最优Top-k特征知识蒸馏决策树规则
+Best Top-k Feature Knowledge Distillation Decision Tree Rules
+================================================================================
+
+数据集: UCI
+最佳配置: k=5, T=4, α=0.1, depth=4
+性能: Accuracy=0.7882, F1=0.7462
+选择特征: PAY_6, BILL_AMT1, BILL_AMT2, BILL_AMT3, LIMIT_BAL
+决策规则:
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL <= -0.713 and PAY_6 <= 1.120 and LIMIT_BAL <= -0.945 THEN class=0 (confidence=0.695)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL <= -0.713 and PAY_6 <= 1.120 and LIMIT_BAL > -0.945 THEN class=0 (confidence=0.775)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL <= -0.713 and PAY_6 > 1.120 and PAY_6 <= 5.034 THEN class=1 (confidence=0.538)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL <= -0.713 and PAY_6 > 1.120 and PAY_6 > 5.034 THEN class=1 (confidence=0.878)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL > -0.713 and BILL_AMT1 <= -0.665 and BILL_AMT2 <= -0.653 THEN class=0 (confidence=0.764)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL > -0.713 and BILL_AMT1 <= -0.665 and BILL_AMT2 > -0.653 THEN class=0 (confidence=0.874)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL > -0.713 and BILL_AMT1 > -0.665 and PAY_6 <= 1.120 THEN class=0 (confidence=0.896)
+IF BILL_AMT1 <= 0.037 and LIMIT_BAL > -0.713 and BILL_AMT1 > -0.665 and PAY_6 > 1.120 THEN class=0 (confidence=0.536)
+IF BILL_AMT1 > 0.037 and PAY_6 <= 1.120 and BILL_AMT1 <= 0.093 and BILL_AMT1 <= 0.060 THEN class=0 (confidence=0.962)
+IF BILL_AMT1 > 0.037 and PAY_6 <= 1.120 and BILL_AMT1 <= 0.093 and BILL_AMT1 > 0.060 THEN class=0 (confidence=0.897)
+IF BILL_AMT1 > 0.037 and PAY_6 <= 1.120 and BILL_AMT1 > 0.093 and BILL_AMT3 <= -0.852 THEN class=1 (confidence=1.000)
+IF BILL_AMT1 > 0.037 and PAY_6 <= 1.120 and BILL_AMT1 > 0.093 and BILL_AMT3 > -0.852 THEN class=0 (confidence=0.837)
+IF BILL_AMT1 > 0.037 and PAY_6 > 1.120 and BILL_AMT3 <= 0.162 and BILL_AMT2 <= 0.052 THEN class=1 (confidence=0.544)
+IF BILL_AMT1 > 0.037 and PAY_6 > 1.120 and BILL_AMT3 <= 0.162 and BILL_AMT2 > 0.052 THEN class=0 (confidence=0.730)
+IF BILL_AMT1 > 0.037 and PAY_6 > 1.120 and BILL_AMT3 > 0.162 and BILL_AMT1 <= 0.112 THEN class=1 (confidence=0.898)
+IF BILL_AMT1 > 0.037 and PAY_6 > 1.120 and BILL_AMT3 > 0.162 and BILL_AMT1 > 0.112 THEN class=1 (confidence=0.501)
+--------------------------------------------------------------------------------
+
+数据集: GERMAN
+最佳配置: k=8, T=1, α=0.0, depth=7
+性能: Accuracy=0.7250, F1=0.6941
+选择特征: Purpose_A410, Purpose_A41, Status_A12, Age, Credit_amount, Duration, Status_A13, Status_A14
+决策规则:
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration <= -0.988 and Age <= -0.961 and Credit_amount <= -0.939 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration <= -0.988 and Age <= -0.961 and Credit_amount > -0.939 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration <= -0.988 and Age > -0.961 and Status_A12 <= 0.577 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration <= -0.988 and Age > -0.961 and Status_A12 > 0.577 THEN class=1 (confidence=0.900)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration > -0.988 and Credit_amount <= -0.612 and Age <= -0.688 THEN class=1 (confidence=0.575)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration > -0.988 and Credit_amount <= -0.612 and Age > -0.688 THEN class=0 (confidence=0.789)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration > -0.988 and Credit_amount > -0.612 and Age <= -0.870 THEN class=1 (confidence=0.618)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 <= 0.226 and Duration > -0.988 and Credit_amount > -0.612 and Age > -0.870 THEN class=1 (confidence=0.705)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration <= 1.011 and Age <= -1.143 and Credit_amount <= -0.800 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration <= 1.011 and Age <= -1.143 and Credit_amount > -0.800 THEN class=1 (confidence=0.625)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration <= 1.011 and Age > -1.143 and Age <= -0.961 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration <= 1.011 and Age > -1.143 and Age > -0.961 THEN class=1 (confidence=0.894)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration > 1.011 and Credit_amount <= 0.113 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration > 1.011 and Credit_amount > 0.113 and Duration <= 1.990 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 <= 1.365 and Status_A14 > 0.226 and Duration > 1.011 and Credit_amount > 0.113 and Duration > 1.990 THEN class=0 (confidence=0.500)
+IF Credit_amount <= 0.365 and Age <= 0.584 and Purpose_A41 > 1.365 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 <= 4.548 and Duration <= 1.990 and Duration <= -0.784 and Credit_amount <= -0.037 THEN class=1 (confidence=0.905)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 <= 4.548 and Duration <= 1.990 and Duration <= -0.784 and Credit_amount > -0.037 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 <= 4.548 and Duration <= 1.990 and Duration > -0.784 and Purpose_A41 <= 1.365 THEN class=1 (confidence=0.657)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 <= 4.548 and Duration <= 1.990 and Duration > -0.784 and Purpose_A41 > 1.365 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 <= 4.548 and Duration > 1.990 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 <= 0.226 and Purpose_A410 > 4.548 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 > 0.226 and Duration <= -0.661 and Purpose_A41 <= 1.365 and Age <= 1.766 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 > 0.226 and Duration <= -0.661 and Purpose_A41 <= 1.365 and Age > 1.766 and Age <= 1.857 THEN class=0 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 > 0.226 and Duration <= -0.661 and Purpose_A41 <= 1.365 and Age > 1.766 and Age > 1.857 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 > 0.226 and Duration <= -0.661 and Purpose_A41 > 1.365 THEN class=1 (confidence=1.000)
+IF Credit_amount <= 0.365 and Age > 0.584 and Status_A14 > 0.226 and Duration > -0.661 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration <= 0.889 and Credit_amount <= 1.912 and Status_A12 <= 0.577 and Age <= -0.597 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration <= 0.889 and Credit_amount <= 1.912 and Status_A12 <= 0.577 and Age > -0.597 THEN class=0 (confidence=0.500)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration <= 0.889 and Credit_amount <= 1.912 and Status_A12 > 0.577 and Credit_amount <= 0.397 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration <= 0.889 and Credit_amount <= 1.912 and Status_A12 > 0.577 and Credit_amount > 0.397 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration <= 0.889 and Credit_amount > 1.912 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age <= -0.779 and Credit_amount <= 1.776 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age <= -0.779 and Credit_amount > 1.776 and Age <= -0.961 THEN class=0 (confidence=0.500)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age <= -0.779 and Credit_amount > 1.776 and Age > -0.961 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age > -0.779 and Status_A14 <= 0.226 and Status_A12 <= 0.577 THEN class=0 (confidence=0.800)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age > -0.779 and Status_A14 <= 0.226 and Status_A12 > 0.577 THEN class=0 (confidence=0.667)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age > -0.779 and Status_A14 > 0.226 and Age <= -0.597 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age <= -0.416 and Duration > 0.889 and Age > -0.779 and Status_A14 > 0.226 and Age > -0.597 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age <= 1.493 and Credit_amount <= 0.423 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age <= 1.493 and Credit_amount > 0.423 and Age <= -0.143 and Duration <= 1.990 THEN class=1 (confidence=0.900)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age <= 1.493 and Credit_amount > 0.423 and Age <= -0.143 and Duration > 1.990 THEN class=0 (confidence=0.667)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age <= 1.493 and Credit_amount > 0.423 and Age > -0.143 and Status_A14 <= 0.226 THEN class=1 (confidence=0.524)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age <= 1.493 and Credit_amount > 0.423 and Age > -0.143 and Status_A14 > 0.226 THEN class=1 (confidence=0.769)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age > 1.493 and Duration <= 2.969 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age > 1.493 and Duration > 2.969 and Status_A14 <= 0.226 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 <= 1.365 and Age > -0.416 and Age > 1.493 and Duration > 2.969 and Status_A14 > 0.226 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration <= 2.112 and Duration <= -0.131 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration <= 2.112 and Duration > -0.131 and Age <= -0.552 and Credit_amount <= 1.359 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration <= 2.112 and Duration > -0.131 and Age <= -0.552 and Credit_amount > 1.359 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration <= 2.112 and Duration > -0.131 and Age > -0.552 and Age <= 0.721 THEN class=1 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration <= 2.112 and Duration > -0.131 and Age > -0.552 and Age > 0.721 THEN class=1 (confidence=0.667)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 <= 0.226 and Duration > 2.112 THEN class=0 (confidence=1.000)
+IF Credit_amount > 0.365 and Purpose_A41 > 1.365 and Status_A14 > 0.226 THEN class=1 (confidence=1.000)
+--------------------------------------------------------------------------------
+
+数据集: AUSTRALIAN
+最佳配置: k=8, T=1, α=0.1, depth=4
+性能: Accuracy=0.7826, F1=0.7826
+选择特征: feature_5_4, feature_5_5, feature_12, feature_9, feature_5_2, feature_5_3, feature_4, feature_6
+决策规则:
+IF feature_5_4 <= -0.107 and feature_4 <= -0.504 and feature_4 <= -1.573 and feature_6 <= 2.449 THEN class=0 (confidence=0.979)
+IF feature_5_4 <= -0.107 and feature_4 <= -0.504 and feature_4 <= -1.573 and feature_6 > 2.449 THEN class=1 (confidence=1.000)
+IF feature_5_4 <= -0.107 and feature_4 <= -0.504 and feature_4 > -1.573 and feature_5_5 <= 1.320 THEN class=0 (confidence=0.792)
+IF feature_5_4 <= -0.107 and feature_4 <= -0.504 and feature_4 > -1.573 and feature_5_5 > 1.320 THEN class=0 (confidence=0.666)
+IF feature_5_4 <= -0.107 and feature_4 > -0.504 and feature_4 <= 0.833 and feature_6 <= -0.261 THEN class=0 (confidence=0.687)
+IF feature_5_4 <= -0.107 and feature_4 > -0.504 and feature_4 <= 0.833 and feature_6 > -0.261 THEN class=1 (confidence=0.791)
+IF feature_5_4 <= -0.107 and feature_4 > -0.504 and feature_4 > 0.833 and feature_6 <= -0.605 THEN class=0 (confidence=0.665)
+IF feature_5_4 <= -0.107 and feature_4 > -0.504 and feature_4 > 0.833 and feature_6 > -0.605 THEN class=1 (confidence=0.885)
+IF feature_5_4 > -0.107 and feature_12 <= -0.454 and feature_9 <= -0.176 and feature_4 <= 0.298 THEN class=0 (confidence=0.659)
+IF feature_5_4 > -0.107 and feature_12 <= -0.454 and feature_9 <= -0.176 and feature_4 > 0.298 THEN class=1 (confidence=0.658)
+IF feature_5_4 > -0.107 and feature_12 <= -0.454 and feature_9 > -0.176 and feature_12 <= -0.909 THEN class=1 (confidence=0.755)
+IF feature_5_4 > -0.107 and feature_12 <= -0.454 and feature_9 > -0.176 and feature_12 > -0.909 THEN class=1 (confidence=1.000)
+IF feature_5_4 > -0.107 and feature_12 > -0.454 and feature_12 <= 0.744 and feature_6 <= -0.336 THEN class=0 (confidence=0.801)
+IF feature_5_4 > -0.107 and feature_12 > -0.454 and feature_12 <= 0.744 and feature_6 > -0.336 THEN class=1 (confidence=0.563)
+IF feature_5_4 > -0.107 and feature_12 > -0.454 and feature_12 > 0.744 and feature_12 <= 1.810 THEN class=1 (confidence=0.531)
+IF feature_5_4 > -0.107 and feature_12 > -0.454 and feature_12 > 0.744 and feature_12 > 1.810 THEN class=0 (confidence=0.828)
+--------------------------------------------------------------------------------
+

@@ -235,5 +235,145 @@ class AblationStudyAnalyzer:
         
         return report_path
 
+    def create_topk_ablation_visualizations(self):
+        """创建2x2 Top-k消融实验可视化图 - 关注k, α, 深度, 温度参数"""
+        if not self.ablation_results:
+            print("❌ No Top-k ablation results to visualize")
+            return None
+            
+        df = pd.DataFrame(self.ablation_results)
+        
+        # 创建2x2子图
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # 数据集颜色映射
+        datasets = df['dataset'].unique()
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝色、橙色、绿色
+        dataset_colors = dict(zip(datasets, colors[:len(datasets)]))
+        
+        # 1. Top-k特征数量分析
+        self._plot_topk_k_ablation(df, axes[0, 0], dataset_colors)
+        
+        # 2. 加权参数α分析
+        self._plot_alpha_ablation(df, axes[0, 1], dataset_colors)
+        
+        # 3. 决策树深度分析
+        self._plot_depth_ablation(df, axes[1, 0], dataset_colors)
+        
+        # 4. 温度参数分析
+        self._plot_temperature_ablation(df, axes[1, 1], dataset_colors)
+        
+        plt.tight_layout()
+        
+        # 保存图像
+        plot_path = f'results/topk_ablation_study_analysis_{self.experiment_timestamp}.png'
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"✅ Top-k ablation study visualization saved: {plot_path}")
+        return plot_path
+
+    def _plot_topk_k_ablation(self, df, ax, dataset_colors):
+        """绘制Top-k特征数量消融分析"""
+        for dataset in df['dataset'].unique():
+            dataset_df = df[df['dataset'] == dataset]
+            k_accuracy = dataset_df.groupby('k')['accuracy'].mean().reset_index()
+            
+            ax.plot(k_accuracy['k'], k_accuracy['accuracy'], 
+                   marker='o', linewidth=2, markersize=6, 
+                   color=dataset_colors[dataset], label=dataset.upper())
+        
+        ax.set_xlabel('Top-k Features', fontsize=12)
+        ax.set_ylabel('Accuracy', fontsize=12)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    def _plot_temperature_ablation(self, df, ax, dataset_colors):
+        """绘制温度参数消融分析"""
+        for dataset in df['dataset'].unique():
+            dataset_df = df[df['dataset'] == dataset]
+            temp_accuracy = dataset_df.groupby('temperature')['accuracy'].mean().reset_index()
+            
+            ax.plot(temp_accuracy['temperature'], temp_accuracy['accuracy'], 
+                   marker='s', linewidth=2, markersize=6, 
+                   color=dataset_colors[dataset], label=dataset.upper())
+        
+        ax.set_xlabel('Temperature', fontsize=12)
+        ax.set_ylabel('Accuracy', fontsize=12)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    def save_ablation_data(self, prefix='ablation_study'):
+        """保存消融实验数据 - 支持自定义前缀"""
+        if not self.ablation_results:
+            print("❌ No ablation data to save")
+            return
+        
+        df = pd.DataFrame(self.ablation_results)
+        
+        # 保存CSV
+        csv_path = f'results/{prefix}_{self.experiment_timestamp}.csv'
+        df.to_csv(csv_path, index=False)
+        
+        # 保存JSON  
+        json_path = f'results/{prefix}_{self.experiment_timestamp}.json'
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(self.ablation_results, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ {prefix} data saved: {csv_path}")
+        print(f"✅ {prefix} data saved: {json_path}")
+
+    def generate_summary_report(self, prefix='ablation_study'):
+        """生成消融实验总结报告 - 支持自定义前缀"""
+        if not self.ablation_results:
+            print("❌ No ablation data to generate report")
+            return None
+            
+        df = pd.DataFrame(self.ablation_results)
+        
+        report = []
+        report.append("="*80)
+        if 'topk' in prefix:
+            report.append("Top-k Knowledge Distillation Ablation Study Report")
+        else:
+            report.append("All-Feature Knowledge Distillation Ablation Study Report")
+        report.append("="*80)
+        report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report.append(f"Total experiments: {len(df)}")
+        report.append("")
+        
+        # 数据集统计
+        for dataset in df['dataset'].unique():
+            dataset_df = df[df['dataset'] == dataset]
+            best_result = dataset_df.loc[dataset_df['accuracy'].idxmax()]
+            
+            report.append(f"📊 {dataset.upper()} Dataset:")
+            report.append(f"   Best Accuracy: {best_result['accuracy']:.4f}")
+            report.append(f"   Best F1-Score: {best_result['f1_score']:.4f}")
+            
+            if 'k' in best_result and best_result['k'] is not None:
+                report.append(f"   Optimal k: {best_result['k']}")
+            report.append(f"   Optimal α: {best_result['alpha']}")
+            report.append(f"   Optimal Temperature: {best_result['temperature']}")
+            report.append(f"   Optimal Max Depth: {best_result['max_depth']}")
+            report.append("")
+            
+        report_text = "\n".join(report)
+        
+        # 保存报告
+        report_path = f'results/{prefix}_report_{self.experiment_timestamp}.txt'
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report_text)
+            
+        # 生成Excel报告
+        excel_path = f'results/{prefix}_results_{self.experiment_timestamp}.xlsx'
+        df.to_excel(excel_path, index=False)
+        
+        print(f"✅ {prefix} report saved: {report_path}")
+        print(f"✅ {prefix} Excel saved: {excel_path}")
+        print("\n" + report_text)
+        
+        return report_path
+
 # 全局消融实验分析器实例
 ablation_analyzer = AblationStudyAnalyzer()

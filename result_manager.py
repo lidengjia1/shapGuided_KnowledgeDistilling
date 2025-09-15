@@ -225,16 +225,16 @@ class ResultManager:
                 
                 if best_config:
                     # 提取决策规则文本 (注意：rules是字典格式)
-                    rules_data = best_config.get('rules', {})
-                    if isinstance(rules_data, dict) and 'rules' in rules_data:
-                        # rules_data是字典，包含rules列表
-                        tree_rules = '\n'.join(rules_data['rules']) if rules_data['rules'] else "规则提取失败"
-                    elif isinstance(rules_data, list):
-                        # rules_data直接是列表
-                        tree_rules = '\n'.join(rules_data) if rules_data else "规则提取失败"
-                    elif isinstance(rules_data, str):
-                        # rules_data是字符串
-                        tree_rules = rules_data
+                    rules_obj = best_config.get('rules', {})
+                    if isinstance(rules_obj, dict) and 'rules' in rules_obj:
+                        # rules_obj是字典，包含rules列表
+                        tree_rules = '\n'.join(rules_obj['rules']) if rules_obj['rules'] else "规则提取失败"
+                    elif isinstance(rules_obj, list):
+                        # rules_obj直接是列表
+                        tree_rules = '\n'.join(rules_obj) if rules_obj else "规则提取失败"
+                    elif isinstance(rules_obj, str):
+                        # rules_obj是字符串
+                        tree_rules = rules_obj
                     else:
                         tree_rules = "规则格式错误"
                     
@@ -364,13 +364,15 @@ class ResultManager:
         timestamped_keep_patterns = [
             'model_comparison_',                    # 模型对比表格
             'best_all_feature_rules_',             # 全特征规则文件  
-            'ablation_study_analysis_',            # 消融实验图
-            'ablation_study_results_'              # 消融实验Excel
+            'best_topk_rules_',                    # Top-k规则文件
+            'ablation_study_analysis_',            # 全特征消融实验图
+            'ablation_study_results_',             # 全特征消融实验Excel
+            'topk_ablation_study_analysis_',       # Top-k消融实验图
+            'topk_ablation_study_results_',        # Top-k消融实验Excel
         ]
         
         # 旧文件清理模式（这些文件可以安全删除）
         old_file_patterns = [
-            'best_topk_rules_',                    # 旧的top-k规则文件
             'simplified_results_',                 # 旧的简化结果
             'master_results_table_',               # 旧的主结果表
             'teacher_model_',                      # 教师模型文件（pkl/pth）

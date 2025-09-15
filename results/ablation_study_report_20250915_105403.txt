@@ -1,0 +1,26 @@
+================================================================================
+All-Feature Knowledge Distillation Ablation Study Report
+================================================================================
+Generated: 2025-09-15 10:55:20
+Total experiments: 825
+
+📊 UCI Dataset:
+   Best Accuracy: 0.8133
+   Best F1-Score: 0.7917
+   Optimal α: 0.1
+   Optimal Temperature: 1
+   Optimal Max Depth: 7
+
+📊 GERMAN Dataset:
+   Best Accuracy: 0.7250
+   Best F1-Score: 0.6837
+   Optimal α: 0.1
+   Optimal Temperature: 1
+   Optimal Max Depth: 4
+
+📊 AUSTRALIAN Dataset:
+   Best Accuracy: 0.8333
+   Best F1-Score: 0.8337
+   Optimal α: 0.1
+   Optimal Temperature: 1
+   Optimal Max Depth: 7

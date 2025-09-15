@@ -142,7 +142,7 @@ def main():
         # Top-k特征蒸馏实验
         top_k_distillation_results = distillator.run_comprehensive_distillation(
             dataset_names=['uci', 'german', 'australian'],
-            k_range=(5, 8),            # k: 5-8
+            k_range=(5, 10),            # k: 5-10
             temperature_range=[1, 2, 3, 4, 5],   # Temperature: 1-5 (间隔1)
             alpha_range=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],  # Alpha: 0.0-1.0 (间隔0.1)
             max_depth_range=[4, 5, 6, 7, 8]        # Depth: 4-8
@@ -167,17 +167,22 @@ def main():
         shap_viz_path = result_manager.generate_shap_visualization(all_shap_results)
         
         # 3. 提取最优全特征蒸馏规则
-        rules_path = result_manager.extract_best_all_feature_rules(all_feature_distillation_results, processed_data)
+        all_feature_rules_path = result_manager.extract_best_all_feature_rules(all_feature_distillation_results, processed_data)
         
-        # 4. 清理不需要的文件
+        # 4. 提取最优Top-k蒸馏规则
+        topk_rules_path = result_manager.extract_best_topk_rules(top_k_distillation_results, processed_data)
+        
+        # 5. 清理不需要的文件
         result_manager.clean_output_files()
         
         print(f"\n🎉 System Execution Completed Successfully!")
-        print(f"   📁 核心结果文件已保存:")
-        print(f"   📊 模型性能对比表格: {comparison_excel_path}")
-        print(f"   � SHAP特征重要性图: {shap_viz_path}")
-        print(f"   🌳 最优全特征蒸馏规则: {rules_path}")
-        print(f"   📈 消融实验结果已在全特征蒸馏阶段生成")
+        print(f"   📁 生成的核心文件:")
+        print(f"   📊 1. 模型性能对比Excel: {comparison_excel_path}")
+        print(f"   🎯 2. SHAP特征重要性图: {shap_viz_path}")
+        print(f"   🌳 3. 全特征蒸馏规则txt: {all_feature_rules_path}")
+        print(f"   🌲 4. Top-k蒸馏规则txt: {topk_rules_path}")
+        print(f"   📈 5. 全特征消融实验结果(Excel+图)已生成")
+        print(f"   📊 6. Top-k消融实验结果(Excel+图)已生成")
         
         # 显示最优蒸馏配置信息
         print(f"\n🏆 最优配置总结:")

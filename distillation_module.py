@@ -12,9 +12,13 @@ from tqdm import tqdm
 import warnings
 import multiprocessing as mp
 import os
+from datetime import datetime
 
 # 导入消融实验分析器
 from ablation_analyzer import ablation_analyzer
+
+# 创建Top-k消融分析器的全局实例
+topk_ablation_analyzer = None
 
 warnings.filterwarnings('ignore')
 
@@ -382,6 +386,13 @@ class KnowledgeDistillator:
     
     def run_comprehensive_distillation(self, dataset_names, k_range, temperature_range, alpha_range, max_depth_range):
         """运行综合知识蒸馏实验（Top-k特征）"""
+        global topk_ablation_analyzer
+        
+        # 初始化Top-k消融分析器
+        from ablation_analyzer import AblationStudyAnalyzer
+        topk_ablation_analyzer = AblationStudyAnalyzer()
+        topk_ablation_analyzer.experiment_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
         results = {}
         
         for dataset_name in dataset_names:
@@ -410,6 +421,19 @@ class KnowledgeDistillator:
                                 use_all_features=False
                             )
                             
+                            # 记录Top-k蒸馏的消融实验数据
+                            topk_ablation_analyzer.record_experiment_result(
+                                dataset_name=dataset_name,
+                                k=k,
+                                temperature=temperature,
+                                alpha=alpha,
+                                max_depth=max_depth,
+                                accuracy=result['accuracy'],
+                                f1_score=result['f1'],
+                                precision=result['precision'],
+                                recall=result['recall']
+                            )
+                            
                             if result['accuracy'] > best_accuracy:  # 改为使用准确率
                                 best_accuracy = result['accuracy']
                                 best_result = result
@@ -421,6 +445,12 @@ class KnowledgeDistillator:
             results[dataset_name]['best'] = best_result
             results[dataset_name]['best_k'] = best_k
             print(f"     Best Accuracy: {best_accuracy:.4f} with k={best_k}")  # 改为显示准确率
+        
+        # 保存Top-k消融实验数据和创建可视化
+        print("\n📊 Saving Top-k ablation study data and creating visualizations...")
+        topk_ablation_analyzer.save_ablation_data(prefix='topk_ablation_study')
+        topk_ablation_analyzer.create_topk_ablation_visualizations()
+        topk_ablation_analyzer.generate_summary_report(prefix='topk_ablation_study')
         
         return results
     
